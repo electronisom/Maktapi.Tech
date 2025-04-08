@@ -1,11 +1,23 @@
 <script>
+	import { Router, Link, Route } from "svelte-routing";
+	import { onMount } from 'svelte';
+	import { isAuthenticated } from './stores/auth';
+	import Login from './login.svelte';
 	import Sidebar from './components/Sidebar.svelte';
 	import RightMenu from './components/RightMenu.svelte';
 	import Header from './components/Header.svelte';
 	import VideoWall from './components/VideoWall.svelte';
 	import TableMonitor from './components/TableMonitor.svelte';
 	
+	export let url = "";
 	let isRecording = false;
+
+	// Redirect to login if not authenticated
+	onMount(() => {
+		if (!$isAuthenticated && window.location.pathname !== '/login') {
+			window.location.href = '/login';
+		}
+	});
 
 	function handleMenuSelect(event) {
 		console.log('Selected menu item:', event.detail.id);
@@ -24,34 +36,49 @@
 	}
 </script>
 
-<main>
-	<Sidebar 
-		on:menuSelect={handleMenuSelect}
-		on:sourceSelect={handleSourceSelect}
-	/>
-	<div class="content">
-		<Header {isRecording} />
-		<div class="main-content">
-			<div class="video-wall-section">
-				<VideoWall on:sourceAdded={handleSourceAdded} />
-			</div>
-			<div class="monitor-section">
-				<TableMonitor />
-			</div>
-		</div>
-	</div>
-	<RightMenu 
-		on:recordingToggle={handleRecordingToggle}
-	/>
-</main>
+<Router {url}>
+	<main>
+		<Route path="/login" component={Login} />
+		<Route path="/*">
+			{#if $isAuthenticated}
+				<div class="app-container">
+					<Sidebar 
+						on:menuSelect={handleMenuSelect}
+						on:sourceSelect={handleSourceSelect}
+					/>
+					<div class="content">
+						<Header {isRecording} />
+						<div class="main-content">
+							<div class="video-wall-section">
+								<VideoWall on:sourceAdded={handleSourceAdded} />
+							</div>
+							<div class="monitor-section">
+								<TableMonitor />
+							</div>
+						</div>
+					</div>
+					<RightMenu 
+						on:recordingToggle={handleRecordingToggle}
+					/>
+				</div>
+			{:else}
+				<Login />
+			{/if}
+		</Route>
+	</main>
+</Router>
 
 <style>
 	main {
+		width: 100%;
+		height: 100vh;
+		background-color: #1a1a1a;
+	}
+
+	.app-container {
 		display: flex;
 		width: 100%;
-		max-height: 100vh;
-		position: relative;
-		background-color: #f5f5f5;
+		height: 100%;
 	}
 	
 	.content {
@@ -85,6 +112,17 @@
 		min-height: 30vh;
 	}
 
+	/* Global styles */
+	:global(body) {
+		margin: 0;
+		padding: 0;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+			Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+		background-color: #000;
+		color: #fff;
+		overflow: hidden;
+	}
+
 	/* Custom Scrollbar Styles */
 	:global(::-webkit-scrollbar) {
 		width: 8px;
@@ -109,15 +147,5 @@
 	:global(*) {
 		scrollbar-width: thin;
 		scrollbar-color: #888 #f1f1f1;
-	}
-
-	:global(body) {
-		margin: 0;
-		padding: 0;
-		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-			Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-		background-color: #000;
-		color: #fff;
-		overflow: hidden;
 	}
 </style>

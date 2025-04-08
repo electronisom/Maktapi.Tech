@@ -69,7 +69,7 @@
 <div class="monitor-container">
   <div class="header">
     <div class="left">
-      <h2>Table Monitor</h2>
+      <!-- <h2>Table Monitor</h2> -->
       <div class="buttons">
         <button class="control-btn power-btn" on:click={handleCloseAll}>
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">

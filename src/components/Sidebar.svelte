@@ -1,5 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { navigate } from 'svelte-routing';
+  import { isAuthenticated } from '../stores/auth';
   const dispatch = createEventDispatcher();
 
   // Active menu item tracking
@@ -91,6 +93,13 @@
     }
     e.dataTransfer.effectAllowed = 'copy';
   }
+
+  function handleExit() {
+    // Clear authentication
+    isAuthenticated.set(false);
+    // Navigate to login
+    navigate('/login');
+  }
 </script>
 <div class="sidebar-container">
 <div class="layout">
@@ -116,7 +125,7 @@
       <button class="menu-item">
         <span class="icon">◎</span>
       </button>
-      <button class="menu-item exit">
+      <button class="menu-item exit" on:click={handleExit}>
         <span class="icon">⮐</span>
       </button>
     </div>
