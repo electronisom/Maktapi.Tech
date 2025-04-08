@@ -72,7 +72,7 @@
 	main {
 		width: 100%;
 		height: 100vh;
-		background-color: #1a1a1a;
+		background-color: #E4E4E4;
 	}
 
 	.app-container {
@@ -85,7 +85,7 @@
 		overflow-y: auto;
 		flex: 1;
 		padding: 1rem;
-		background-color: #f5f5f5;
+		background-color: #E4E4E4;
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
