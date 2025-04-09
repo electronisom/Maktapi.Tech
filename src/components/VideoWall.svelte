@@ -2,6 +2,9 @@
   import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher();
 
+  // Import the presentation thumbnail image
+  import presentationThumbnail from '../th.png';
+
   // Initial items that show when the application loads
   let videoWallItems = [
     {
@@ -9,7 +12,7 @@
       type: 'presentation',
       stream: null,
       videoElement: null,
-      thumbnail: '../src/th.png',
+      thumbnail: presentationThumbnail, // Use the imported image
       content: null,
       position: { x: 0, y: 0 },
       size: { width: 535, height: 321 }
@@ -621,6 +624,10 @@
               src={item.thumbnail} 
               alt="Presentation" 
               class="presentation-image"
+              on:error={(e) => {
+                console.error('Failed to load presentation image:', e);
+                e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNlZWVlZWUiLz48cGF0aCBkPSJNMTAwIDUwVjE1ME0xNTAgMTAwSDUwIiBzdHJva2U9IiNjY2NjY2MiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
+              }}
             />
           </div>
         {/if}
