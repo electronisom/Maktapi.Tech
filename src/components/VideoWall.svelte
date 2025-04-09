@@ -9,7 +9,7 @@
       type: 'presentation',
       stream: null,
       videoElement: null,
-      thumbnail: 'https://s8.ezgif.com/tmp/ezgif-8348ef61fb576.png',
+      thumbnail: 'https://media-hosting.imagekit.io/6c79edddc2d849ed/th.png?Expires=1838797462&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=Bolgpn02672FofMrvvhKYcvang0L0l15s8tm3X-g8E4U~jr7RhHqS4~Ub3p2USHVtjbu9o9tVSHpVl~TxdmybfcFFfbSwIeAI7pd5HS8NY2Oj1PHXsYvag6UEM2IOUgyGTa31FUMLejqcCh94ee69vl5j2VdRn3CgExGr~29cKI8MwFVXF0KBPLnucTTGfwwb5wDUtprXwLKrCupFDEtdGiCijMOCDgP2TO1crREsYhts6hXUnK2Hz6dbhlXiw~sECTliEKl0~5jwxM6D3UVbw-TwH4WPMCcZ5skrgFJoiY46w1jED3bMefhP9eB58YViLFIcw8aqalMZcS4p0Lowg__',
       content: null,
       position: { x: 0, y: 0 },
       size: { width: 535, height: 321 }
