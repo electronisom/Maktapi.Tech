@@ -37,6 +37,46 @@
     dispatch('selectAll', { items: videoWallItems });
   }
 
+  // Add new function to toggle camera stream
+  async function toggleCamera(item) {
+    if (item.stream) {
+      // Stop the current stream
+      item.stream.getTracks().forEach(track => track.stop());
+      item.stream = null;
+      if (item.videoElement) {
+        item.videoElement.srcObject = null;
+      }
+      // Remove the item from the wall
+      videoWallItems = videoWallItems.filter(i => i.id !== item.id);
+    } else {
+      try {
+        // Start a new stream
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: true
+        });
+        
+        // Create new item with the stream
+        const newItem = {
+          ...item,
+          stream,
+          videoElement: null,
+          position: item.position,
+          size: item.size
+        };
+        
+        // Add the new item back to the wall
+        videoWallItems = [...videoWallItems, newItem];
+      } catch(err) {
+        console.error('Failed to get camera:', err);
+      }
+    }
+  }
+
+  // Update handleCloseAll to properly handle camera streams
   async function handleCloseAll() {
     // Stop all video streams before removing (except presentation)
     for (const item of videoWallItems) {
@@ -259,26 +299,12 @@
     const x = Math.max(0, Math.min(rawX, wallRect.width - draggedItem.size.width));
     const y = Math.max(0, Math.min(rawY, wallHeight - draggedItem.size.height));
     
-    // Find nearest valid position
-    const newPosition = findNearestValidPosition(
-      {
-        x,
-        y,
-        width: draggedItem.size.width,
-        height: draggedItem.size.height
-      },
-      videoWallItems,
-      draggedItem.id
-    );
-    
+    // Update the item's position
     videoWallItems = videoWallItems.map(item => 
       item.id === draggedItem.id 
-        ? { ...item, position: newPosition }
+        ? { ...item, position: { x, y } }
         : item
     );
-
-    // Log position for debugging
-    console.log(`Source "${draggedItem.id}" position:`, newPosition);
   }
 
   function stopDragging() {
@@ -414,44 +440,31 @@
 
       if (stream || sourceType === 'presentation') {
         const wallRect = wallRef.getBoundingClientRect();
+        const dropX = e.clientX - wallRect.left;
+        const dropY = e.clientY - wallRect.top;
         
-        // Find the largest empty space
-        const largestSpace = findLargestEmptySpace(
-          videoWallItems,
-          wallRect.width,
-          wallHeight
-        );
+        // Default size for new items
+        const defaultSize = {
+          width: 400,
+          height: 300
+        };
 
-        if (largestSpace) {
-          // For all sources, use the exact size of the empty space
-          const newItem = {
-            id: sourceId,
-            type: sourceType,
-            stream,
-            videoElement: null,
-            position: {
-              x: largestSpace.x,
-              y: largestSpace.y
-            },
-            size: {
-              width: largestSpace.width,
-              height: largestSpace.height
-            }
-          };
+        // Create new item at drop position
+        const newItem = {
+          id: sourceId,
+          type: sourceType,
+          stream,
+          videoElement: null,
+          position: {
+            x: Math.max(0, Math.min(dropX - defaultSize.width/2, wallRect.width - defaultSize.width)),
+            y: Math.max(0, Math.min(dropY - defaultSize.height/2, wallHeight - defaultSize.height))
+          },
+          size: defaultSize
+        };
 
-          // Double-check for collisions before adding
-          const hasCollision = videoWallItems.some(item => 
-            isColliding(
-              { x: newItem.position.x, y: newItem.position.y, width: newItem.size.width, height: newItem.size.height },
-              { x: item.position.x, y: item.position.y, width: item.size.width, height: item.size.height }
-            )
-          );
-
-          if (!hasCollision) {
-            videoWallItems = [...videoWallItems, newItem];
-            dispatch('sourceAdded', { sourceId, sourceType });
-          }
-        }
+        // Add the new item
+        videoWallItems = [...videoWallItems, newItem];
+        dispatch('sourceAdded', { sourceId, sourceType });
       }
     }
   }
@@ -555,17 +568,24 @@
 
   <div 
     class="video-wall" 
-    bind:this={videoWallRef}
+    bind:this={wallRef}
     on:dragover={handleDragOver} 
     on:drop={handleDrop}
-    on:mousemove={handleDrag}
-    on:mousemove={handleResize}
-    on:mousemove={handleWallResize}
-    on:mouseup={stopDragging}
-    on:mouseup={stopResizing}
-    on:mouseup={stopWallResize}
-    on:mouseleave={stopResizing}
-    on:mouseleave={stopWallResize}
+    on:mousemove={(e) => {
+      if (isResizing) handleResize(e);
+      else if (isResizingWall) handleWallResize(e);
+      else if (draggedItem) handleDrag(e);
+    }}
+    on:mouseup={() => {
+      stopDragging();
+      stopResizing();
+      stopWallResize();
+    }}
+    on:mouseleave={() => {
+      stopDragging();
+      stopResizing();
+      stopWallResize();
+    }}
     style="height: {wallHeight}px;"
   >
     {#each videoWallItems as item (item.id)}
@@ -604,6 +624,16 @@
                   {item.videoElement?.muted ? '🔇' : '🔊'}
                 </button>
               </div>
+            {:else if item.type === 'camera'}
+              <div class="screen-share-overlay">
+                <span class="screen-share-label">Camera</span>
+                <button 
+                  class="audio-toggle"
+                  on:click={() => toggleCamera(item)}
+                >
+                  {item.stream ? '📷' : '📹'}
+                </button>
+              </div>
             {/if}
             <!-- Resize handles -->
             <div class="resize-handle nw" on:mousedown={(e) => startResizing(e, item, 'nw')}></div>
@@ -626,6 +656,15 @@
                 e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNlZWVlZWUiLz48cGF0aCBkPSJNMTAwIDUwVjE1ME0xNTAgMTAwSDUwIiBzdHJva2U9IiNjY2NjY2MiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
               }}
             />
+            <!-- Add resize handles for presentation -->
+            <div class="resize-handle nw" on:mousedown={(e) => startResizing(e, item, 'nw')}></div>
+            <div class="resize-handle n" on:mousedown={(e) => startResizing(e, item, 'n')}></div>
+            <div class="resize-handle ne" on:mousedown={(e) => startResizing(e, item, 'ne')}></div>
+            <div class="resize-handle e" on:mousedown={(e) => startResizing(e, item, 'e')}></div>
+            <div class="resize-handle se" on:mousedown={(e) => startResizing(e, item, 'se')}></div>
+            <div class="resize-handle s" on:mousedown={(e) => startResizing(e, item, 's')}></div>
+            <div class="resize-handle sw" on:mousedown={(e) => startResizing(e, item, 'sw')}></div>
+            <div class="resize-handle w" on:mousedown={(e) => startResizing(e, item, 'w')}></div>
           </div>
         {/if}
       </div>
@@ -649,23 +688,28 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
-  /* Add fullscreen styles for the container */
   .video-wall-container:fullscreen {
     width: 100vw;
     height: 100vh;
     padding: 0;
+    margin: 0;
     border-radius: 0;
     background-color: white;
+    display: flex;
+    flex-direction: column;
   }
 
   .video-wall-container:fullscreen .video-wall {
-    height: calc(100vh - 80px); /* Account for header height */
-    max-height: none;
+    height: calc(100vh - 60px);
     width: 100%;
+    max-width: none;
+    max-height: none;
+    padding: 1rem;
   }
 
   .video-wall-container:fullscreen .header {
     padding: 1rem 2rem;
+    height: 60px;
   }
 
   .header {
@@ -757,8 +801,30 @@
     overflow: hidden;
     width: 838px;
     min-height: 300px;
-    max-height: 391px;
+    max-height: 800px;
     transition: height 0.2s ease;
+  }
+
+  .video-wall-container:fullscreen .video-item {
+    max-width: none;
+    max-height: none;
+  }
+
+  .video-wall-container:fullscreen .resize-handle {
+    opacity: 1;
+  }
+
+  .video-wall-container:fullscreen .resize-handle:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .video-wall-container:fullscreen .wall-resize-handle {
+    height: 16px;
+  }
+
+  .video-wall-container:fullscreen .wall-resize-handle::before {
+    height: 6px;
+    opacity: 0.7;
   }
 
   .video-item {
@@ -878,6 +944,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    cursor: move;
   }
 
   .presentation-image {
@@ -886,8 +953,27 @@
     object-fit: cover;
   }
 
+  /* Show resize handles for presentation */
   .presentation .resize-handle {
-    display: none;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .presentation:hover .resize-handle {
+    opacity: 1;
+  }
+
+  /* Make resize handles more visible */
+  .resize-handle {
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    z-index: 10;
+  }
+
+  .resize-handle:hover {
+    background-color: rgba(255, 255, 255, 0.5);
   }
 
   .conference-grid {
