@@ -1,6 +1,20 @@
 <script>
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { slide } from 'svelte/transition';
+  import copyLink from './icons/copy-link.svg';
+  import micIcon from './icons/mic.svg';
+  import micCloseIcon from './icons/mic-close.svg';
+  import audioLevelIcon from './icons/audio-level.svg';
+  import audioCloseIcon from './icons/audio-close.svg';
+  import cameraOpenIcon from './icons/camera-open.svg';
+  import cameraCloseIcon from './icons/camera-close.svg';
+  import recordIcon from './icons/record.svg';
+  import recordCloseIcon from './icons/record-close.svg';
+  import shareIcon from './icons/share.svg';
+  import addPersonIcon from './icons/add-person.svg';
+  import aiIcon from './icons/ai.svg';
+  import exitMeetingIcon from './icons/exit-meeting.svg';
+  import saveIcon from './icons/save.svg';
   const dispatch = createEventDispatcher();
 
   // State management
@@ -207,14 +221,21 @@
 
   const menuItems = [
     { 
+      id: 'copylink',
+      icon: () => copyLink,
+      label: 'Copy Link',
+      action: () => {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+          dispatch('notification', { message: 'Meeting link copied to clipboard!' });
+        }).catch(() => {
+          dispatch('error', { message: 'Failed to copy link' });
+        });
+      }
+    },
+    { 
       id: 'mic',
-      icon: (active) => `<svg viewBox="0 0 24 24" fill="currentColor">
-        ${active ? 
-          `<path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-           <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>` :
-          `<path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>`
-        }
-      </svg>`,
+      icon: (active) => active ? micIcon : micCloseIcon,
       label: 'Microphone',
       action: async () => {
         try {
@@ -243,25 +264,11 @@
     { 
       id: 'speaker',
       icon: (active) => {
-        if (!active) return `<svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-        </svg>`;
-        
-        if (volume === 0) return `<svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7 9v6h4l5 5V4l-5 5H7z"/>
-        </svg>`;
-        
-        if (volume < 33) return `<svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7 9v6h4l5 5V4l-5 5H7zm8 .83v4.34c.31-.14.59-.31.86-.49v-3.36c-.27-.18-.55-.35-.86-.49z"/>
-        </svg>`;
-        
-        if (volume < 66) return `<svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7 9v6h4l5 5V4l-5 5H7zm8 .83v4.34c.31-.14.59-.31.86-.49v-3.36c-.27-.18-.55-.35-.86-.49z M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
-        </svg>`;
-        
-        return `<svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-        </svg>`;
+        if (!active) return audioCloseIcon;
+        if (volume === 0) return audioCloseIcon;
+        if (volume < 33) return audioLevelIcon;
+        if (volume < 66) return audioLevelIcon;
+        return audioLevelIcon;
       },
       label: 'Speaker',
       action: () => {
@@ -274,12 +281,7 @@
     },
     { 
       id: 'video',
-      icon: (active) => `<svg viewBox="0 0 24 24" fill="currentColor">
-        ${active ?
-          `<path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>` :
-          `<path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>`
-        }
-      </svg>`,
+      icon: (active) => active ? cameraOpenIcon : cameraCloseIcon,
       label: 'Video',
       action: async () => {
         try {
@@ -306,13 +308,14 @@
       }
     },
     { 
+      id: 'record',
+      icon: (active) => active ? recordIcon : recordCloseIcon,
+      label: 'Record',
+      action: toggleRecording
+    },
+    { 
       id: 'screen',
-      icon: (active) => `<svg viewBox="0 0 24 24" fill="currentColor">
-        ${active ?
-          `<path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>` :
-          `<path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zm-7-3.53v-2.19c-2.78 0-4.61.85-6 2.72.56-2.67 2.11-5.33 6-5.87V7l4 3.73-4 3.74z"/>`
-        }
-      </svg>`,
+      icon: (active) => active ? shareIcon : shareIcon,
       label: 'Screen Share',
       action: async () => {
         try {
@@ -338,26 +341,45 @@
       }
     },
     { 
-      id: 'record',
-      icon: (active) => `<svg viewBox="0 0 24 24" fill="currentColor">
-        ${active ? 
-          `<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>` :
-          `<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-3.5l6-4.5-6-4.5v9z"/>`
-        }
-      </svg>`,
-      label: 'Record',
-      action: toggleRecording
-    },
-    { 
-      id: 'share',
-      icon: () => `<svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M18 8h-3v2h3v11H6V10h3V8H6c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6-5v9.5l3.5-3.5 1.4 1.4L12 15.3l-4.9-4.9 1.4-1.4L12 12.5V3h2z"/>
-      </svg>`,
+      id: 'add',
+      icon: () => addPersonIcon,
       label: 'Share',
       action: () => {
         dispatch('share');
       }
-    }
+    },
+    { 
+      id: 'ai',
+      icon: () => aiIcon,
+      label: 'AI Assistant',
+      action: async () => {
+        const aiWindow = window.open('', 'AI Assistant', 'width=400,height=600');
+        try {
+          const response = await fetch('/ai-assistant.html');
+          const htmlContent = await response.text();
+          aiWindow.document.write(htmlContent);
+        } catch (error) {
+          console.error('Failed to load AI assistant:', error);
+          aiWindow.document.write('<h1>Error</h1><p>Failed to load AI assistant. Please try again later.</p>');
+        }
+      }
+    },
+    { 
+      id: 'exit',
+      icon: () => exitMeetingIcon,
+      label: 'Exit Meeting',
+      action: () => {
+        dispatch('exit');
+      }
+    },
+    { 
+      id: 'save',
+      icon: () => saveIcon,
+      label: 'Save',
+      action: () => {
+        dispatch('save');
+      }
+    },
   ];
 
   function handleMenuClick(item) {
@@ -412,7 +434,7 @@
           on:click={() => handleMenuClick(item)}
         >
           <span class="icon">
-            {@html item.icon(activeStates[item.id])}
+            <img src={item.icon(activeStates[item.id])} alt={item.label} class="menu-icon" />
           </span>
         </button>
         
@@ -436,7 +458,8 @@
   <div class="bottom-icons">
     <button class="menu-item" on:click={() => handleMenuClick(menuItems[menuItems.length - 1])}>
       <span class="icon">
-        {@html menuItems[menuItems.length - 1].icon()}
+        
+        <img src={menuItems[menuItems.length - 1].icon()} alt={menuItems[menuItems.length - 1].label} class="menu-icon" />
       </span>
     </button>
   </div>
@@ -457,6 +480,7 @@
     position: relative;
     overflow: hidden;
     border-radius: 20px;
+    margin-right: 1px;
   }
 
   .right-menu::before {
@@ -474,7 +498,7 @@
   }
 
   .menu-items {
-    margin-top: 3rem;
+    margin-top: 0.2rem;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -486,11 +510,13 @@
     display: flex;
     align-items: center;
   }
-
-  .menu-item {
-    margin-left: 10px;
-    width: 50px;
-    height: 50px;
+.menu-item-container:first-child{
+  margin-bottom: 70px;
+}
+  .menu-item{
+    margin-left: 17px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: none;
     color: #4D4D4D;
@@ -508,10 +534,10 @@
     color: #808080;
   }
 
-  .menu-item.active {
+  /* .menu-item.active {
     color: #4CAF50;
     background-color: rgba(76, 175, 80, 0.08);
-  }
+  } */
 
   .menu-item.record {
     color: #ff4444;
@@ -527,7 +553,7 @@
     flex-direction: column;
     gap: 0.5rem;
     width: 100%;
-    margin-bottom: 1rem;
+    margin-top: 1rem;
   }
 
   .icon {
@@ -544,83 +570,49 @@
   }
 
   .volume-slider {
-    position: absolute;
-    right: 60px;
-    top: 50%;
+    position: fixed;
+    right: 82px;
+    top: 21%;
     transform: translateY(-50%);
-    background: #2a2a2a;
-    padding: 15px 10px;
-    border-radius: 8px;
-    height: 120px;
-    width: 40px;
-    z-index: 10;
+    background: #1a1a1a;
+    padding: 15px 8px;
+    border-radius: 12px;
+    height: 140px;
+    width: 35px;
+    z-index: 9999;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-  .volume-slider::after {
-    content: '';
-    position: absolute;
-    right: -6px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-top: 6px solid transparent;
-    border-bottom: 6px solid transparent;
-    border-left: 6px solid #2a2a2a;
-  }
-
   .volume-slider input[type="range"] {
     width: 120px;
-    height: 4px;
-    background: #4D4D4D;
-    border-radius: 2px;
+    height: 3px;
+    background: #333333;
+    border-radius: 4px;
     outline: none;
     -webkit-appearance: none;
     transform: rotate(-90deg);
     transform-origin: center;
+    margin: 0;
+    padding: 0;
   }
 
   .volume-slider input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 12px;
     height: 12px;
-    background: #4CAF50;
+    background: #ffffff;
     border-radius: 50%;
     cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .volume-slider input[type="range"]::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
-  }
-
-  .volume-slider input[type="range"]::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    background: #4CAF50;
-    border-radius: 50%;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s ease;
-  }
-
-  .volume-slider input[type="range"]::-moz-range-thumb:hover {
-    transform: scale(1.2);
+    margin-top: -4.5px;
   }
 
   .volume-slider input[type="range"]::-webkit-slider-runnable-track {
-    background: linear-gradient(to right, #4CAF50 0%, #4CAF50 var(--volume-percent, 50%), #4D4D4D var(--volume-percent, 50%), #4D4D4D 100%);
-    border-radius: 2px;
-    height: 4px;
-  }
-
-  .volume-slider input[type="range"]::-moz-range-track {
-    background: linear-gradient(to right, #4CAF50 0%, #4CAF50 var(--volume-percent, 50%), #4D4D4D var(--volume-percent, 50%), #4D4D4D 100%);
-    border-radius: 2px;
-    height: 4px;
+    background: linear-gradient(to top, #4CAF50 0%, #4CAF50 var(--volume-percent, 50%), #333333 var(--volume-percent, 50%), #333333 100%);
+    border-radius: 4px;
+    height: 3px;
+    border: none;
   }
 
   .camera-feed-container {
@@ -641,5 +633,9 @@
     height: 100%;
     object-fit: cover;
     transform: scaleX(-1); /* Mirror the video */
+  }
+  .menu-item-container:last-child{
+    margin-top: 30px;
+    margin-bottom: 30px;
   }
 </style> 

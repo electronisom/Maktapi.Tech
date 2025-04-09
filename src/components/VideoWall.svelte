@@ -9,13 +9,10 @@
       type: 'presentation',
       stream: null,
       videoElement: null,
-      thumbnail: '/thank-you-slide.jpg', // We'll need to ensure this image exists
-      content: {
-        title: 'Thank You!',
-        subtitle: '@company.name     www.company.com     (123) 456-7890'
-      },
+      thumbnail: '../src/th.png',
+      content: null,
       position: { x: 0, y: 0 },
-      size: { width: 300, height: 200 }
+      size: { width: 535, height: 321 }
     },
   ];
 
@@ -23,10 +20,17 @@
   let resizingItem = null;
   let dragOffset = { x: 0, y: 0 };
   let wallRef;
-  let wallHeight = 600; // Default height
+  let wallHeight = 471;
   let isResizingWall = false;
   let initialY = 0;
   let initialHeight = 0;
+  let isResizing = false;
+  let initialX = 0;
+  let initialSize = { width: 0, height: 0 };
+  let initialPosition = { x: 0, y: 0 };
+  let resizeDirection = '';
+  let isFullscreen = false;
+  let videoWallRef;
 
   // Add new functions for button actions
   function handleSelectAll() {
@@ -67,8 +71,9 @@
     };
   }
 
-  // Add helper function to check for collision
+  // Modify isColliding function to prevent any overlaps
   function isColliding(rect1, rect2) {
+    // Always return true if there's any overlap
     return !(rect1.x + rect1.width <= rect2.x ||
              rect1.x >= rect2.x + rect2.width ||
              rect1.y + rect1.height <= rect2.y ||
@@ -144,6 +149,104 @@
     return bestPosition;
   }
 
+  // Modify findLargestEmptySpace function to handle all sources
+  function findLargestEmptySpace(items, wallWidth, wallHeight) {
+    // Start with the entire wall as a potential space
+    let spaces = [{
+      x: 0,
+      y: 0,
+      width: wallWidth,
+      height: wallHeight
+    }];
+
+    // Sort items by position to ensure consistent space splitting
+    const sortedItems = [...items].sort((a, b) => {
+      if (a.position.y !== b.position.y) {
+        return a.position.y - b.position.y;
+      }
+      return a.position.x - b.position.x;
+    });
+
+    // For each item, split the spaces
+    for (const item of sortedItems) {
+      const newSpaces = [];
+      for (const space of spaces) {
+        // If the item doesn't overlap with this space, keep it
+        if (!isColliding(space, {
+          x: item.position.x,
+          y: item.position.y,
+          width: item.size.width,
+          height: item.size.height
+        })) {
+          newSpaces.push(space);
+          continue;
+        }
+
+        // Split the space into non-overlapping regions
+        // Left space
+        if (item.position.x > space.x) {
+          newSpaces.push({
+            x: space.x,
+            y: space.y,
+            width: item.position.x - space.x,
+            height: space.height
+          });
+        }
+
+        // Right space
+        if (item.position.x + item.size.width < space.x + space.width) {
+          newSpaces.push({
+            x: item.position.x + item.size.width,
+            y: space.y,
+            width: space.x + space.width - (item.position.x + item.size.width),
+            height: space.height
+          });
+        }
+
+        // Top space
+        if (item.position.y > space.y) {
+          newSpaces.push({
+            x: space.x,
+            y: space.y,
+            width: space.width,
+            height: item.position.y - space.y
+          });
+        }
+
+        // Bottom space
+        if (item.position.y + item.size.height < space.y + space.height) {
+          newSpaces.push({
+            x: space.x,
+            y: item.position.y + item.size.height,
+            width: space.width,
+            height: space.y + space.height - (item.position.y + item.size.height)
+          });
+        }
+      }
+      spaces = newSpaces;
+    }
+
+    // Filter out spaces that are too small
+    const minSize = 200; // Minimum size for a usable space
+    spaces = spaces.filter(space => 
+      space.width >= minSize && 
+      space.height >= minSize
+    );
+
+    // Find the largest space
+    let largestSpace = null;
+    let maxArea = 0;
+    for (const space of spaces) {
+      const area = space.width * space.height;
+      if (area > maxArea) {
+        maxArea = area;
+        largestSpace = space;
+      }
+    }
+
+    return largestSpace;
+  }
+
   // Modify handleDrag function
   function handleDrag(e) {
     if (!draggedItem) return;
@@ -192,106 +295,79 @@
 
   function startResizing(e, item, direction) {
     e.stopPropagation();
-    resizingItem = { item, direction };
-    dragOffset = {
-      x: e.clientX,
-      y: e.clientY
-    };
+    e.preventDefault();
+    isResizing = true;
+    resizingItem = item;
+    resizeDirection = direction;
+    initialX = e.clientX;
+    initialY = e.clientY;
+    initialSize = { ...item.size };
+    initialPosition = { ...item.position };
     console.log('Started resizing:', { id: item.id, direction });
   }
 
   function handleResize(e) {
-    if (!resizingItem) return;
-    
-    const dx = e.clientX - dragOffset.x;
-    const dy = e.clientY - dragOffset.y;
-    dragOffset = { x: e.clientX, y: e.clientY };
-    
-    const { item, direction } = resizingItem;
-    const minSize = 200; // Minimum size for screen share
-    const maxSize = {
-      width: wallRef.clientWidth,
-      height: wallRef.clientHeight
-    };
-    
-    videoWallItems = videoWallItems.map(vItem => {
-      if (vItem.id !== item.id) return vItem;
-      
-      const newSize = { ...vItem.size };
-      const newPosition = { ...vItem.position };
-      
-      // Calculate new dimensions with constraints
-      if (direction.includes('e')) {
-        newSize.width = Math.min(
-          maxSize.width - vItem.position.x,
-          Math.max(minSize, vItem.size.width + dx)
-        );
+    if (!isResizing || !resizingItem) return;
+
+    e.preventDefault();
+    const dx = e.clientX - initialX;
+    const dy = e.clientY - initialY;
+    const wallRect = wallRef.getBoundingClientRect();
+
+    let newWidth = initialSize.width;
+    let newHeight = initialSize.height;
+    const minSize = 50; // Reduced from 200 to 50 pixels
+    const maxWidth = wallRect.width;
+    const maxHeight = wallHeight;
+
+    // Calculate new dimensions based on resize direction
+    if (resizeDirection.includes('e')) {
+      newWidth = Math.max(minSize, Math.min(maxWidth - resizingItem.position.x, initialSize.width + dx));
+    }
+    if (resizeDirection.includes('w')) {
+      const potentialWidth = Math.max(minSize, initialSize.width - dx);
+      if (potentialWidth !== newWidth) {
+        newWidth = potentialWidth;
+        resizingItem.position.x = Math.min(wallRect.width - minSize, Math.max(0, initialPosition.x + dx));
       }
-      if (direction.includes('w')) {
-        const newWidth = Math.min(
-          vItem.position.x + vItem.size.width,
-          Math.max(minSize, vItem.size.width - dx)
-        );
-        if (newWidth !== vItem.size.width) {
-          newPosition.x = vItem.position.x + (vItem.size.width - newWidth);
-          newSize.width = newWidth;
-        }
+    }
+    if (resizeDirection.includes('s')) {
+      newHeight = Math.max(minSize, Math.min(maxHeight - resizingItem.position.y, initialSize.height + dy));
+    }
+    if (resizeDirection.includes('n')) {
+      const potentialHeight = Math.max(minSize, initialSize.height - dy);
+      if (potentialHeight !== newHeight) {
+        newHeight = potentialHeight;
+        resizingItem.position.y = Math.min(wallHeight - minSize, Math.max(0, initialPosition.y + dy));
       }
-      if (direction.includes('s')) {
-        newSize.height = Math.min(
-          maxSize.height - vItem.position.y,
-          Math.max(minSize, vItem.size.height + dy)
-        );
+    }
+
+    // Update the item's size
+    videoWallItems = videoWallItems.map(item => {
+      if (item.id === resizingItem.id) {
+        return {
+          ...item,
+          size: { width: newWidth, height: newHeight },
+          position: { ...item.position }
+        };
       }
-      if (direction.includes('n')) {
-        const newHeight = Math.min(
-          vItem.position.y + vItem.size.height,
-          Math.max(minSize, vItem.size.height - dy)
-        );
-        if (newHeight !== vItem.size.height) {
-          newPosition.y = vItem.position.y + (vItem.size.height - newHeight);
-          newSize.height = newHeight;
-        }
-      }
-      
-      // Check for collisions with other items
-      const newRect = {
-        x: newPosition.x,
-        y: newPosition.y,
-        width: newSize.width,
-        height: newSize.height
-      };
-      
-      const hasCollision = videoWallItems.some(other => 
-        other.id !== vItem.id && isColliding(newRect, {
-          x: other.position.x,
-          y: other.position.y,
-          width: other.size.width,
-          height: other.size.height
-        })
-      );
-      
-      // Only apply new size if there's no collision
-      if (!hasCollision) {
-        console.log('Resizing:', { id: vItem.id, size: newSize, position: newPosition });
-        return { ...vItem, size: newSize, position: newPosition };
-      }
-      
-      return vItem;
+      return item;
     });
   }
 
   function stopResizing() {
     if (resizingItem) {
       console.log('Stopped resizing:', { 
-        id: resizingItem.item.id, 
-        finalSize: videoWallItems.find(i => i.id === resizingItem.item.id)?.size 
+        id: resizingItem.id, 
+        finalSize: resizingItem.size 
       });
     }
+    isResizing = false;
     resizingItem = null;
+    resizeDirection = '';
   }
 
-  // Modify handleDrop function
+  // Modify handleDrop function to ensure no overlaps
   async function handleDrop(e) {
     e.preventDefault();
     const sourceType = e.dataTransfer.getData('sourceType');
@@ -315,7 +391,6 @@
         }
       } else if (sourceType === 'sharepoint' || sourceType === 'screen' || isScreenShare) {
         try {
-          // Request screen sharing with audio option
           stream = await navigator.mediaDevices.getDisplayMedia({ 
             video: {
               cursor: "always",
@@ -328,17 +403,10 @@
             }
           });
           
-          // Handle stream ending (user stops sharing)
           stream.getVideoTracks()[0].onended = () => {
             console.log('Screen sharing stopped');
             videoWallItems = videoWallItems.filter(item => item.id !== sourceId);
           };
-
-          // Log active tracks
-          console.log('Screen share tracks:', {
-            video: stream.getVideoTracks().length,
-            audio: stream.getAudioTracks().length
-          });
         } catch(err) {
           console.error('Failed to start screen sharing:', err);
         }
@@ -346,38 +414,44 @@
 
       if (stream || sourceType === 'presentation') {
         const wallRect = wallRef.getBoundingClientRect();
-        const rawX = e.clientX - wallRect.left;
-        const rawY = e.clientY - wallRect.top;
         
-        // Make sure the drop position is within the current wall height
-        const y = Math.min(rawY, wallHeight - 300); // 300 is minimum item height
-        
-        const newItemSize = { width: 400, height: 300 };
-        
-        // Find valid position for new item
-        const validPosition = findNearestValidPosition(
-          {
-            x: rawX,
-            y,
-            width: newItemSize.width,
-            height: newItemSize.height
-          },
+        // Find the largest empty space
+        const largestSpace = findLargestEmptySpace(
           videoWallItems,
-          sourceId
+          wallRect.width,
+          wallHeight
         );
 
-      const newItem = {
-        id: sourceId,
-        type: sourceType,
-        stream,
-        videoElement: null,
-          position: validPosition,
-          size: newItemSize
-        };
+        if (largestSpace) {
+          // For all sources, use the exact size of the empty space
+          const newItem = {
+            id: sourceId,
+            type: sourceType,
+            stream,
+            videoElement: null,
+            position: {
+              x: largestSpace.x,
+              y: largestSpace.y
+            },
+            size: {
+              width: largestSpace.width,
+              height: largestSpace.height
+            }
+          };
 
-        console.log('Adding new item at position:', validPosition);
-      videoWallItems = [...videoWallItems, newItem];
-        dispatch('sourceAdded', { sourceId, sourceType });
+          // Double-check for collisions before adding
+          const hasCollision = videoWallItems.some(item => 
+            isColliding(
+              { x: newItem.position.x, y: newItem.position.y, width: newItem.size.width, height: newItem.size.height },
+              { x: item.position.x, y: item.position.y, width: item.size.width, height: item.size.height }
+            )
+          );
+
+          if (!hasCollision) {
+            videoWallItems = [...videoWallItems, newItem];
+            dispatch('sourceAdded', { sourceId, sourceType });
+          }
+        }
       }
     }
   }
@@ -398,29 +472,58 @@
   }
 
   function startWallResize(e) {
+    e.preventDefault();
+    e.stopPropagation();
     isResizingWall = true;
     initialY = e.clientY;
     initialHeight = wallHeight;
-    e.preventDefault();
   }
 
   function handleWallResize(e) {
     if (!isResizingWall) return;
     
+    e.preventDefault();
+    e.stopPropagation();
+    
     const dy = e.clientY - initialY;
-    const minHeight = 300; // Minimum wall height
-    const maxHeight = window.innerHeight - 100; // Maximum wall height (leaving some space)
+    const minHeight = 300;
+    const maxHeight = window.innerHeight - 100;
     
     wallHeight = Math.min(maxHeight, Math.max(minHeight, initialHeight + dy));
-    console.log('Video wall height:', wallHeight);
   }
 
   function stopWallResize() {
     isResizingWall = false;
   }
+
+  function handleFullscreen() {
+    if (!document.fullscreenElement) {
+      // Change to use the container element for fullscreen
+      const container = document.querySelector('.video-wall-container');
+      if (container) {
+        if (container.requestFullscreen) {
+          container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        } else if (container.msRequestFullscreen) {
+          container.msRequestFullscreen();
+        }
+        isFullscreen = true;
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+      isFullscreen = false;
+    }
+  }
 </script>
 
-<div class="video-wall-container">
+<div class="video-wall-container" bind:this={videoWallRef}>
   <div class="header">
     <div class="left">
       <div class="buttons">
@@ -429,10 +532,18 @@
             <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
           </svg>
         </button>
-        <button class="control-btn success-btn" on:click={handleSelectAll}>
-          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
-          </svg>
+        <button class="control-btn fullscreen-btn" on:click={handleFullscreen}>
+          {#if !isFullscreen}
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="20" height="20" rx="10" fill="#34C759"/>
+              <path d="M15.3906 5.3125V8.125C15.3906 8.31148 15.3165 8.49032 15.1847 8.62218C15.0528 8.75405 14.874 8.82812 14.6875 8.82812C14.501 8.82812 14.3222 8.75405 14.1903 8.62218C14.0585 8.49032 13.9844 8.31148 13.9844 8.125V7.01172L11.6693 9.32734C11.5372 9.45943 11.3581 9.53364 11.1713 9.53364C10.9845 9.53364 10.8053 9.45943 10.6732 9.32734C10.5412 9.19525 10.4669 9.0161 10.4669 8.8293C10.4669 8.64249 10.5412 8.46334 10.6732 8.33125L12.9883 6.01562H11.875C11.6885 6.01562 11.5097 5.94155 11.3778 5.80968C11.246 5.67782 11.1719 5.49898 11.1719 5.3125C11.1719 5.12602 11.246 4.94718 11.3778 4.81532C11.5097 4.68345 11.6885 4.60938 11.875 4.60938H14.6875C14.874 4.60938 15.0528 4.68345 15.1847 4.81532C15.3165 4.94718 15.3906 5.12602 15.3906 5.3125ZM8.33066 10.6744L6.01562 12.9883V11.875C6.01562 11.6885 5.94155 11.5097 5.80968 11.3778C5.67782 11.246 5.49898 11.1719 5.3125 11.1719C5.12602 11.1719 4.94718 11.246 4.81532 11.3778C4.68345 11.5097 4.60938 11.6885 4.60938 11.875V14.6875C4.60938 14.874 4.68345 15.0528 4.81532 15.1847C4.94718 15.3165 5.12602 15.3906 5.3125 15.3906H8.125C8.31148 15.3906 8.49032 15.3165 8.62218 15.1847C8.75405 15.0528 8.82812 14.874 8.82812 14.6875C8.82812 14.501 8.75405 14.3222 8.62218 14.1903C8.49032 14.0585 8.31148 13.9844 8.125 13.9844H7.01172L9.32734 11.6693C9.45943 11.5372 9.53364 11.3581 9.53364 11.1713C9.53364 10.9845 9.45943 10.8053 9.32734 10.6732C9.19525 10.5412 9.0161 10.4669 8.8293 10.4669C8.64249 10.4669 8.46334 10.5412 8.33125 10.6732L8.33066 10.6744Z" fill="white"/>
+            </svg>
+          {:else}
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="20" height="20" rx="10" fill="#34C759"/>
+              <path d="M6.66666 13.3333V16.6667H3.33332M13.3333 16.6667H16.6667V13.3333M16.6667 6.66667V3.33333H13.3333M3.33332 3.33333H6.66666V6.66667" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          {/if}
         </button>
       </div>
     </div>
@@ -444,15 +555,18 @@
 
   <div 
     class="video-wall" 
-    bind:this={wallRef}
+    bind:this={videoWallRef}
     on:dragover={handleDragOver} 
     on:drop={handleDrop}
     on:mousemove={handleDrag}
     on:mousemove={handleResize}
-    on:mouseup={() => {
-      stopDragging();
-      stopResizing();
-    }}
+    on:mousemove={handleWallResize}
+    on:mouseup={stopDragging}
+    on:mouseup={stopResizing}
+    on:mouseup={stopWallResize}
+    on:mouseleave={stopResizing}
+    on:mouseleave={stopWallResize}
+    style="height: {wallHeight}px;"
   >
     {#each videoWallItems as item (item.id)}
       <div
@@ -503,49 +617,51 @@
           </div>
         {:else if item.type === 'presentation'}
           <div class="presentation">
-            <div class="thank-you-slide">
-              <div class="thank-you-content">
-                <h1 class="thank-you-title">Thank You!</h1>
-                <div class="decorative-line"></div>
-                <div class="company-info">
-                  <div class="info-row">
-                    <span class="text">www.company.com</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="text">contact@company.com</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="text">(123) 456-7890</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- Add resize handles for presentation -->
-            <div class="resize-handle nw" on:mousedown={(e) => startResizing(e, item, 'nw')}></div>
-            <div class="resize-handle n" on:mousedown={(e) => startResizing(e, item, 'n')}></div>
-            <div class="resize-handle ne" on:mousedown={(e) => startResizing(e, item, 'ne')}></div>
-            <div class="resize-handle e" on:mousedown={(e) => startResizing(e, item, 'e')}></div>
-            <div class="resize-handle se" on:mousedown={(e) => startResizing(e, item, 'se')}></div>
-            <div class="resize-handle s" on:mousedown={(e) => startResizing(e, item, 's')}></div>
-            <div class="resize-handle sw" on:mousedown={(e) => startResizing(e, item, 'sw')}></div>
-            <div class="resize-handle w" on:mousedown={(e) => startResizing(e, item, 'w')}></div>
+            <img 
+              src={item.thumbnail} 
+              alt="Presentation" 
+              class="presentation-image"
+            />
           </div>
         {/if}
       </div>
     {/each}
+    <div 
+      class="wall-resize-handle"
+      on:mousedown={startWallResize}
+    ></div>
   </div>
 </div>
 
 <style>
   .video-wall-container {
     width: 100%;
-    height: 100%;
+    height: 391px;
     background-color: white;
     border-radius: 12px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Add fullscreen styles for the container */
+  .video-wall-container:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    padding: 0;
+    border-radius: 0;
+    background-color: white;
+  }
+
+  .video-wall-container:fullscreen .video-wall {
+    height: calc(100vh - 80px); /* Account for header height */
+    max-height: none;
+    width: 100%;
+  }
+
+  .video-wall-container:fullscreen .header {
+    padding: 1rem 2rem;
   }
 
   .header {
@@ -635,6 +751,10 @@
     padding: 1rem;
     background-color: white;
     overflow: hidden;
+    width: 838px;
+    min-height: 300px;
+    max-height: 391px;
+    transition: height 0.2s ease;
   }
 
   .video-item {
@@ -643,8 +763,8 @@
     border-radius: 8px;
     overflow: hidden;
     cursor: move;
-    max-height: calc(100% - 2rem); /* Account for padding */
-    max-width: calc(100% - 2rem);
+    /* max-height: calc(100% - 2rem); Account for padding */
+    /* max-width: calc(100% - 2rem); */
   }
 
   .video-item video,
@@ -654,78 +774,56 @@
     object-fit: cover;
   }
 
+  /* Hide resize handles but keep functionality */
   .resize-handle {
     position: absolute;
-    background: rgba(255, 255, 255, 0.2);
+    background-color: transparent;
+    border: none;
     z-index: 10;
+    opacity: 0;
   }
+
+  /* Make the entire border resizable */
+  .n, .s {
+    width: 100%;
+    height: 6px;
+    left: 0;
+    cursor: ns-resize;
+  }
+
+  .e, .w {
+    width: 6px;
+    height: 100%;
+    top: 0;
+    cursor: ew-resize;
+  }
+
+  .nw, .se, .ne, .sw {
+    width: 20px;
+    height: 20px;
+  }
+
+  .n { top: -3px; }
+  .s { bottom: -3px; }
+  .e { right: -3px; }
+  .w { left: -3px; }
+  .nw { top: -3px; left: -3px; cursor: nw-resize; }
+  .ne { top: -3px; right: -3px; cursor: ne-resize; }
+  .sw { bottom: -3px; left: -3px; cursor: sw-resize; }
+  .se { bottom: -3px; right: -3px; cursor: se-resize; }
 
   .resize-handle:hover {
-    background: rgba(255, 255, 255, 0.4);
+    background-color: transparent;
+    transform: none;
   }
 
-  .resize-handle.n {
-    top: 0;
-    left: 8px;
-    right: 8px;
-    height: 8px;
-    cursor: n-resize;
+  .video-container .resize-handle {
+    opacity: 0;
   }
 
-  .resize-handle.e {
-    top: 8px;
-    right: 0;
-    bottom: 8px;
-    width: 8px;
-    cursor: e-resize;
-  }
-
-  .resize-handle.s {
-    bottom: 0;
-    left: 8px;
-    right: 8px;
-    height: 8px;
-    cursor: s-resize;
-  }
-
-  .resize-handle.w {
-    top: 8px;
-    left: 0;
-    bottom: 8px;
-    width: 8px;
-    cursor: w-resize;
-  }
-
-  .resize-handle.nw,
-  .resize-handle.ne,
-  .resize-handle.se,
-  .resize-handle.sw {
-    width: 12px;
-    height: 12px;
-  }
-
-  .resize-handle.nw {
-    top: 0;
-    left: 0;
-    cursor: nw-resize;
-  }
-
-  .resize-handle.ne {
-    top: 0;
-    right: 0;
-    cursor: ne-resize;
-  }
-
-  .resize-handle.se {
-    bottom: 0;
-    right: 0;
-    cursor: se-resize;
-  }
-
-  .resize-handle.sw {
-    bottom: 0;
-    left: 0;
-    cursor: sw-resize;
+  .video-container:hover .resize-handle {
+    opacity: 0;
+    background: transparent;
   }
 
   .screen-share-overlay {
@@ -768,93 +866,24 @@
   }
 
   .presentation {
-    position: relative; /* Add this to make resize handles position correctly */
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     background: #000000;
     width: 100%;
     height: 100%;
-    color: white;
     overflow: hidden;
   }
 
-  .thank-you-slide {
+  .presentation-image {
     width: 100%;
     height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 5%;
+    object-fit: cover;
   }
 
-  .thank-you-content {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
-  }
-
-  .thank-you-title {
-    font-size: clamp(24px, calc(100vw * 0.05), 120px);
-    margin-bottom: 1rem;
-  }
-
-  .decorative-line {
-    width: clamp(40px, 15%, 100px);
-    height: clamp(1px, 0.3vh, 3px);
-    background: white;
-    margin: clamp(10px, 3vh, 30px) auto;
-  }
-
-  .company-info {
-    margin-top: 2rem;
-    width: 100%;
-    text-align: center;
-  }
-
-  .info-row {
-    font-size: clamp(12px, calc(100vw * 0.02), 36px);
-    margin: 0.5rem 0;
-  }
-
-  .text {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    max-width: 90%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  @container (max-aspect-ratio: 1/1) {
-    .thank-you-content {
-      gap: 2vh;
-    }
-
-    .thank-you-title {
-      font-size: clamp(20px, calc(100vw * 0.06), 80px);
-    }
-
-    .info-row {
-      font-size: clamp(10px, calc(100vw * 0.025), 24px);
-    }
-  }
-
-  @container (min-aspect-ratio: 2/1) {
-    .thank-you-content {
-      gap: 1vh;
-    }
-
-    .thank-you-title {
-      font-size: clamp(20px, calc(100vh * 0.15), 80px);
-    }
-
-    .info-row {
-      font-size: clamp(10px, calc(100vh * 0.05), 24px);
-    }
+  .presentation .resize-handle {
+    display: none;
   }
 
   .conference-grid {
@@ -978,15 +1007,6 @@
     background: #000;
   }
 
-  /* Make resize handles more visible on hover */
-  .video-container:hover .resize-handle {
-    opacity: 1;
-  }
-
-  .video-container:not(:hover) .resize-handle {
-    opacity: 0;
-  }
-
   .wall-resize-handle {
     position: absolute;
     bottom: 0;
@@ -995,16 +1015,27 @@
     height: 12px;
     background: transparent;
     cursor: ns-resize;
+    z-index: 1000;
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
-    transition: background-color 0.2s;
   }
 
-  .wall-resize-handle:hover,
-  .wall-resize-handle:active {
-    background: rgba(0, 0, 0, 0.05);
+  .wall-resize-handle:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .wall-resize-handle::before {
+    content: '';
+    width: 40px;
+    height: 4px;
+    background: #666;
+    border-radius: 2px;
+    opacity: 0.5;
+  }
+
+  .wall-resize-handle:hover::before {
+    opacity: 0.8;
   }
 
   .resize-indicator {
@@ -1035,7 +1066,7 @@
   }
 
   /* Make resize handle more visible on dark backgrounds */
-  .wall-resize-handle::after {
+  .wall-resize-handle::before {
     content: '';
     position: absolute;
     left: 0;
@@ -1057,5 +1088,50 @@
 
   .presentation:not(:hover) .resize-handle {
     opacity: 0;
+  }
+
+  .wall-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: white;
+    border-bottom: 1px solid #eee;
+  }
+
+  .wall-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .control-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .control-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .fullscreen-btn {
+    color: #34C759;
+  }
+
+  .fullscreen-btn:hover {
+    background-color: rgba(52, 199, 89, 0.1);
+  }
+
+  .video-wall:fullscreen {
+    background-color: white;
+    padding: 20px;
   }
 </style> 
