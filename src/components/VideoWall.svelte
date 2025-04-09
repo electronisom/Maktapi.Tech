@@ -2,9 +2,6 @@
   import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher();
 
-  // Import the presentation thumbnail image
-  import presentationThumbnail from '../th.png';
-
   // Initial items that show when the application loads
   let videoWallItems = [
     {
@@ -12,7 +9,7 @@
       type: 'presentation',
       stream: null,
       videoElement: null,
-      thumbnail: presentationThumbnail, // Use the imported image
+      thumbnail: 'https://s8.ezgif.com/tmp/ezgif-8348ef61fb576.png',
       content: null,
       position: { x: 0, y: 0 },
       size: { width: 535, height: 321 }
