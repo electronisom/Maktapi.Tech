@@ -64,14 +64,14 @@
 		gap: 1rem;
 		overflow-x: hidden;
 		align-items: center;
-		width: 838px;
+		width: 100%;
 	}
 
 	.main-content {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-		width: 95%;
+		width: 100%;
 	}
 
 	.video-wall-section {
@@ -79,7 +79,7 @@
 		border-radius: 8px;
 		overflow: hidden;
 		height: 471px;
-		width: 100%;
+		width:95%;
 		padding: 20px;
 	}
 
@@ -88,6 +88,7 @@
 		border-radius: 8px;
 		overflow: hidden;
 		min-height: 30vh;
+		/* width: 95%; */
 	}
 
 	/* Custom Scrollbar Styles */
