@@ -31,6 +31,7 @@
   let resizeDirection = '';
   let isFullscreen = false;
   let videoWallRef;
+  let originalDimensions = new Map(); // Track original dimensions of sources
 
   // Add new functions for button actions
   function handleSelectAll() {
@@ -342,30 +343,30 @@
 
     let newWidth = initialSize.width;
     let newHeight = initialSize.height;
-    const minSize = 50; // Reduced from 200 to 50 pixels
+    const minSize = 50;
     const maxWidth = wallRect.width;
     const maxHeight = wallHeight;
+    const aspectRatio = initialSize.width / initialSize.height;
 
     // Calculate new dimensions based on resize direction
-    if (resizeDirection.includes('e')) {
-      newWidth = Math.max(minSize, Math.min(maxWidth - resizingItem.position.x, initialSize.width + dx));
+    if (resizeDirection.includes('s') || resizeDirection.includes('n')) {
+      // When resizing vertically, adjust width proportionally
+      const heightChange = resizeDirection.includes('n') ? -dy : dy;
+      newHeight = Math.max(minSize, Math.min(maxHeight - resizingItem.position.y, initialSize.height + heightChange));
+      newWidth = newHeight * aspectRatio;
+    } else if (resizeDirection.includes('e') || resizeDirection.includes('w')) {
+      // When resizing horizontally, adjust height proportionally
+      const widthChange = resizeDirection.includes('w') ? -dx : dx;
+      newWidth = Math.max(minSize, Math.min(maxWidth - resizingItem.position.x, initialSize.width + widthChange));
+      newHeight = newWidth / aspectRatio;
+    }
+
+    // Update position for n and w resizing
+    if (resizeDirection.includes('n')) {
+      resizingItem.position.y = initialPosition.y + (initialSize.height - newHeight);
     }
     if (resizeDirection.includes('w')) {
-      const potentialWidth = Math.max(minSize, initialSize.width - dx);
-      if (potentialWidth !== newWidth) {
-        newWidth = potentialWidth;
-        resizingItem.position.x = Math.min(wallRect.width - minSize, Math.max(0, initialPosition.x + dx));
-      }
-    }
-    if (resizeDirection.includes('s')) {
-      newHeight = Math.max(minSize, Math.min(maxHeight - resizingItem.position.y, initialSize.height + dy));
-    }
-    if (resizeDirection.includes('n')) {
-      const potentialHeight = Math.max(minSize, initialSize.height - dy);
-      if (potentialHeight !== newHeight) {
-        newHeight = potentialHeight;
-        resizingItem.position.y = Math.min(wallHeight - minSize, Math.max(0, initialPosition.y + dy));
-      }
+      resizingItem.position.x = initialPosition.x + (initialSize.width - newWidth);
     }
 
     // Update the item's size
@@ -374,7 +375,7 @@
         return {
           ...item,
           size: { width: newWidth, height: newHeight },
-          position: { ...item.position }
+          position: { ...resizingItem.position }
         };
       }
       return item;
@@ -393,7 +394,7 @@
     resizeDirection = '';
   }
 
-  // Modify handleDrop function to ensure no overlaps
+  // Modify handleDrop function
   async function handleDrop(e) {
     e.preventDefault();
     const sourceType = e.dataTransfer.getData('sourceType');
@@ -445,8 +446,8 @@
         
         // Default size for new items
         const defaultSize = {
-          width: 400,
-          height: 300
+          width: 260,
+          height: 156,
         };
 
         // Create new item at drop position
@@ -464,6 +465,22 @@
 
         // Add the new item
         videoWallItems = [...videoWallItems, newItem];
+
+        // Resize and reposition presentation if it exists
+        const presentationItem = videoWallItems.find(item => item.type === 'presentation');
+        if (presentationItem) {
+          videoWallItems = videoWallItems.map(item => {
+            if (item.id === presentationItem.id) {
+              return {
+                ...item,
+                position: { x: 0, y: 0 },
+                size: defaultSize
+              };
+            }
+            return item;
+          });
+        }
+
         dispatch('sourceAdded', { sourceId, sourceType });
       }
     }
@@ -511,6 +528,15 @@
 
   function handleFullscreen() {
     if (!document.fullscreenElement) {
+      // Store original dimensions before entering fullscreen
+      originalDimensions.clear();
+      videoWallItems.forEach(item => {
+        originalDimensions.set(item.id, {
+          position: { ...item.position },
+          size: { ...item.size }
+        });
+      });
+
       // Change to use the container element for fullscreen
       const container = document.querySelector('.video-wall-container');
       if (container) {
@@ -522,6 +548,16 @@
           container.msRequestFullscreen();
         }
         isFullscreen = true;
+
+        // Keep original positions and sizes in fullscreen
+        videoWallItems = videoWallItems.map(item => {
+          const original = originalDimensions.get(item.id);
+          return {
+            ...item,
+            position: original.position,
+            size: original.size
+          };
+        });
       }
     } else {
       if (document.exitFullscreen) {
@@ -532,6 +568,19 @@
         document.msExitFullscreen();
       }
       isFullscreen = false;
+
+      // Restore original dimensions
+      videoWallItems = videoWallItems.map(item => {
+        const original = originalDimensions.get(item.id);
+        if (original) {
+          return {
+            ...item,
+            position: original.position,
+            size: original.size
+          };
+        }
+        return item;
+      });
     }
   }
 </script>
@@ -677,48 +726,155 @@
 </div>
 
 <style>
+  /* Add this to prevent touch events from interfering with scrolling */
+  .video-item {
+    touch-action:double-tap-zoom;
+  }
+
+  /* Make resize handles larger for touch devices */
+  .resize-handle {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
   .video-wall-container {
     width: 100%;
-    height: 391px;
+    height: 100%;
     background-color: white;
     border-radius: 12px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    max-width: 100%;
+    overflow: hidden;
   }
 
+  .video-wall {
+    position: relative;
+    flex: 1;
+    padding: 1rem;
+    background-color: white;
+    width: 100%;
+    height: fit-content;
+    transition: height 0.2s ease;
+    min-height: 300px;
+    box-sizing: border-box;
+  }
+
+  .video-item {
+    position: absolute;
+    background: #000;
+    border-radius: 8px;
+    cursor: move;
+    overflow: hidden;
+    max-width: calc(100% - 2rem);
+    max-height: calc(100% - 2rem);
+  }
+
+  .video-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .video-item video,
+  .video-item .presentation {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+  }
+
+  /* Resize handles for the entire border */
+  .resize-handle {
+    position: absolute;
+    background-color: transparent;
+    z-index: 10;
+    opacity: 0;
+  }
+
+  /* Make the entire border resizable */
+  .n, .s {
+    width: 100%;
+    height: 100%;
+    left: 0;
+    cursor: ns-resize;
+  }
+
+  .e, .w {
+    width: 100%;
+    height: 100%;
+    top: 0;
+    cursor: ew-resize;
+  }
+
+  .nw, .se, .ne, .sw {
+    width: 100%;
+    height: 100%;
+  }
+
+  .n { top: 0; height: 2px; background: rgba(255, 255, 255, 0.2); }
+  .s { bottom: 0; height: 2px; background: rgba(255, 255, 255, 0.2); }
+  .e { right: 0; width: 2px; background: rgba(255, 255, 255, 0.2); }
+  .w { left: 0; width: 2px; background: rgba(255, 255, 255, 0.2); }
+  .nw { top: 0; left: 0; width: 20px; height: 20px; cursor: nw-resize; }
+  .ne { top: 0; right: 0; width: 20px; height: 20px; cursor: ne-resize; }
+  .sw { bottom: 0; left: 0; width: 20px; height: 20px; cursor: sw-resize; }
+  .se { bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize; }
+
+  /* Show resize areas on hover */
+  .video-item:hover .resize-handle {
+    opacity: 1;
+  }
+
+  .video-item:hover {
+    border: 2px solid rgba(255, 255, 255, 0.2);
+  }
+
+  @media (max-width: 1200px) {
+    .video-wall {
+      padding: 0.5rem;
+    }
+
+    .video-item {
+      max-width: calc(100% - 1rem);
+      max-height: calc(100% - 1rem);
+    }
+
+    /* Adjust resize handles for smaller screens */
+    .nw, .ne, .sw, .se {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  /* Ensure fullscreen mode works properly */
   .video-wall-container:fullscreen {
     width: 100vw;
     height: 100vh;
     padding: 0;
     margin: 0;
-    border-radius: 0;
-    background-color: white;
-    display: flex;
-    flex-direction: column;
   }
 
   .video-wall-container:fullscreen .video-wall {
-    height: calc(100vh - 60px);
-    width: 100%;
-    max-width: none;
-    max-height: none;
     padding: 1rem;
+    height: calc(100vh - 60px);
   }
 
-  .video-wall-container:fullscreen .header {
-    padding: 1rem 2rem;
-    height: 60px;
+  .video-wall-container:fullscreen .video-item {
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100vh - 62px);
   }
 
   .header {
+    padding: 1rem;
+    height: 60px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 1rem 1.5rem;
-    background-color: white;
+    justify-content: space-between;
     border-bottom: 1px solid #eee;
+    box-sizing: border-box;
   }
 
   .left {
@@ -793,18 +949,6 @@
     margin-top: 0.25rem;
   }
 
-  .video-wall {
-    position: relative;
-    flex: 1;
-    padding: 1rem;
-    background-color: white;
-    overflow: hidden;
-    width: 838px;
-    min-height: 300px;
-    max-height: 800px;
-    transition: height 0.2s ease;
-  }
-
   .video-wall-container:fullscreen .video-item {
     max-width: none;
     max-height: none;
@@ -827,73 +971,8 @@
     opacity: 0.7;
   }
 
-  .video-item {
-    position: absolute;
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-    cursor: move;
-    /* max-height: calc(100% - 2rem); Account for padding */
-    /* max-width: calc(100% - 2rem); */
-  }
-
-  .video-item video,
-  .video-item .presentation {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  /* Hide resize handles but keep functionality */
-  .resize-handle {
-    position: absolute;
-    background-color: transparent;
-    border: none;
-    z-index: 10;
-    opacity: 0;
-  }
-
-  /* Make the entire border resizable */
-  .n, .s {
-    width: 100%;
-    height: 6px;
-    left: 0;
-    cursor: ns-resize;
-  }
-
-  .e, .w {
-    width: 6px;
-    height: 100%;
-    top: 0;
-    cursor: ew-resize;
-  }
-
-  .nw, .se, .ne, .sw {
-    width: 20px;
-    height: 20px;
-  }
-
-  .n { top: -3px; }
-  .s { bottom: -3px; }
-  .e { right: -3px; }
-  .w { left: -3px; }
-  .nw { top: -3px; left: -3px; cursor: nw-resize; }
-  .ne { top: -3px; right: -3px; cursor: ne-resize; }
-  .sw { bottom: -3px; left: -3px; cursor: sw-resize; }
-  .se { bottom: -3px; right: -3px; cursor: se-resize; }
-
-  .resize-handle:hover {
-    background-color: transparent;
-    transform: none;
-  }
-
-  .video-container .resize-handle {
-    opacity: 0;
-  }
-
-  .video-container:hover .resize-handle {
-    opacity: 0;
-    background: transparent;
+  .video-item:hover {
+    border: 2px solid rgba(255, 255, 255, 0.2);
   }
 
   .screen-share-overlay {
@@ -964,139 +1043,6 @@
     opacity: 1;
   }
 
-  /* Make resize handles more visible */
-  .resize-handle {
-    position: absolute;
-    background-color: rgba(255, 255, 255, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    z-index: 10;
-  }
-
-  .resize-handle:hover {
-    background-color: rgba(255, 255, 255, 0.5);
-  }
-
-  .conference-grid {
-    width: 100%;
-    height: 100%;
-    background-color: #1a1a1a;
-    padding: 0.5rem;
-  }
-
-  .participants-grid {
-    width: 100%;
-    height: 100%;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 0.5rem;
-  }
-
-  .participant-cell {
-    background-color: #2a2a2a;
-    border-radius: 4px;
-    width: 100%;
-    height: 100%;
-  }
-
-  .dashboard {
-    width: 100%;
-    height: 100%;
-    background-color: white;
-    padding: 1rem;
-  }
-
-  .dashboard img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  .sharepoint-item {
-    width: 100%;
-    height: 100%;
-    background-color: white;
-    padding: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #eee;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-  }
-
-  .sharepoint-item:hover {
-    border-color: #0078d4;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.1);
-  }
-
-  .document-preview, .folder-preview {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .document-icon, .folder-icon {
-    color: #0078d4;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .folder-icon {
-    color: #ffd700;
-  }
-
-  .document-info, .folder-info {
-    text-align: center;
-  }
-
-  .document-info h3, .folder-info h3 {
-    margin: 0;
-    font-size: 1rem;
-    color: #333;
-    font-weight: 500;
-    margin-bottom: 0.25rem;
-  }
-
-  .document-info p, .folder-info p {
-    margin: 0;
-    font-size: 0.875rem;
-    color: #666;
-  }
-
-  .file-type {
-    display: inline-block;
-    padding: 2px 6px;
-    background-color: #f0f0f0;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    color: #666;
-    margin-top: 0.5rem;
-  }
-
-  .document-icon svg {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-  }
-
-  .video-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .video-element {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background: #000;
-  }
-
   .wall-resize-handle {
     position: absolute;
     bottom: 0;
@@ -1128,56 +1074,9 @@
     opacity: 0.8;
   }
 
-  .resize-indicator {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .resize-dots {
-    display: flex;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-
-  .resize-dots span {
-    width: 4px;
-    height: 4px;
-    background-color: #666;
-    border-radius: 50%;
-    opacity: 0.5;
-  }
-
-  .wall-resize-handle:hover .resize-dots span {
-    opacity: 0.8;
-  }
-
-  /* Make resize handle more visible on dark backgrounds */
-  .wall-resize-handle::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: rgba(0, 0, 0, 0.1);
-    bottom: 0;
-  }
-
   /* Add a subtle highlight effect when resizing */
   .video-wall-container.resizing {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  /* Show resize handles on hover */
-  .presentation:hover .resize-handle {
-    opacity: 1;
-  }
-
-  .presentation:not(:hover) .resize-handle {
-    opacity: 0;
   }
 
   .wall-header {
@@ -1195,33 +1094,10 @@
     align-items: center;
   }
 
-  .control-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .control-btn:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-  }
-
-  .fullscreen-btn {
-    color: #34C759;
-  }
-
-  .fullscreen-btn:hover {
-    background-color: rgba(52, 199, 89, 0.1);
-  }
-
   .video-wall:fullscreen {
     background-color: white;
     padding: 20px;
+    width: 100%;
+    height: 100%;
   }
 </style> 

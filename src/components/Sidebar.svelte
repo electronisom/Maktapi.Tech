@@ -209,13 +209,13 @@
   .sidebar-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: 100vh;
     /* position: relative; */
     width: 317px;
   }
   .layout {
     display: flex;
-    height: 99vh;
+    height: 100vh;
     position: relative;
     width: 100%;
     color: white;
@@ -223,7 +223,7 @@
 
   /* Icon Menu Styles */
   .icon-menu {
-    width: 80px;
+    width: 6vw;
     background-color: black;
     color: #ffffff;
     display: flex;
@@ -252,17 +252,18 @@
   }
 
   .menu-items {
-    margin-top: 1.5rem;
+    margin-top: 7vh;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: 70px;
+    width: 100%;
     border-radius: 24px;
     color: white;
+    align-items: center;
+    /* padding: 0px 10px; */
   }
 
   .menu-item {
-    margin-left: 2.3vh;
     width: 40px;
     height: 40px;
     background: #20242B;
@@ -297,6 +298,7 @@
     gap: 0.5rem;
     width: 100%;
     background-color: none !important;
+    align-items: center;
   }
 
   .exit {
@@ -317,7 +319,7 @@
     border-left: 1px solid #1a1a1a;
     display: flex;
     flex-direction: column;
-    height: 99vh;
+    height: 100vh;
     /* border-radius: 24px; */
     border-top-right-radius:24px;
     border-bottom-right-radius: 24px;

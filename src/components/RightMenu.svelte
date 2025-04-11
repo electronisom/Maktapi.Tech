@@ -511,7 +511,7 @@
     align-items: center;
   }
 .menu-item-container:first-child{
-  margin-bottom: 70px;
+  margin-bottom: 15vh;
 }
   .menu-item{
     margin-left: 17px;
@@ -635,7 +635,7 @@
     transform: scaleX(-1); /* Mirror the video */
   }
   .menu-item-container:last-child{
-    margin-top: 30px;
-    margin-bottom: 30px;
+    margin-top: 6vh;
+    margin-bottom: 0px;
   }
 </style> 

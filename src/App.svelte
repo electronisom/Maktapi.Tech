@@ -64,12 +64,14 @@
 		gap: 1rem;
 		overflow-x: hidden;
 		align-items: center;
+		width: 838px;
 	}
 
 	.main-content {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		width: 95%;
 	}
 
 	.video-wall-section {
@@ -77,7 +79,7 @@
 		border-radius: 8px;
 		overflow: hidden;
 		height: 471px;
-		width: 838px;
+		width: 100%;
 		padding: 20px;
 	}
 
