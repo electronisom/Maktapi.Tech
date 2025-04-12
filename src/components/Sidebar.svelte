@@ -8,6 +8,7 @@
   import commandIcon from './icons/command.svg';
   import imersiveIcon from './icons/imersive.svg';
   import orderIcon from './icons/order.svg';
+  // import logo from './icons/logo.svg';
   import settingIcon from './icons/setting.svg';
   const dispatch = createEventDispatcher();
 
