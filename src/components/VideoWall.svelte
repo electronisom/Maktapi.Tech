@@ -1,5 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import PdfViewer from './PdfViewer.svelte';
+  import DashboardViewer from './DashboardViewer.svelte';
   const dispatch = createEventDispatcher();
 
   // Initial items that show when the application loads
@@ -51,28 +53,42 @@
       videoWallItems = videoWallItems.filter(i => i.id !== item.id);
     } else {
       try {
-        // Start a new stream
+        // Start a new stream with specific constraints
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: {
             width: { ideal: 1280 },
-            height: { ideal: 720 }
+            height: { ideal: 720 },
+            facingMode: 'user'
           },
-          audio: true
+          audio: false
         });
+        
+        // Create new video element
+        const videoElement = document.createElement('video');
+        videoElement.autoplay = true;
+        videoElement.playsinline = true;
+        videoElement.muted = true;
+        videoElement.srcObject = stream;
         
         // Create new item with the stream
         const newItem = {
           ...item,
           stream,
-          videoElement: null,
+          videoElement,
           position: item.position,
           size: item.size
         };
         
         // Add the new item back to the wall
         videoWallItems = [...videoWallItems, newItem];
+        
+        // Start playing the video
+        videoElement.play().catch(err => {
+          console.error('Failed to play video:', err);
+        });
       } catch(err) {
         console.error('Failed to get camera:', err);
+        error = 'Failed to access camera. Please check permissions.';
       }
     }
   }
@@ -364,7 +380,7 @@
     // Update position for n and w resizing
     if (resizeDirection.includes('n')) {
       resizingItem.position.y = initialPosition.y + (initialSize.height - newHeight);
-    }
+      }
     if (resizeDirection.includes('w')) {
       resizingItem.position.x = initialPosition.x + (initialSize.width - newWidth);
     }
@@ -397,107 +413,247 @@
   // Modify handleDrop function
   async function handleDrop(e) {
     e.preventDefault();
-    const sourceType = e.dataTransfer.getData('sourceType');
-    const sourceId = e.dataTransfer.getData('sourceId');
-    const isScreenShare = e.dataTransfer.getData('isScreenShare') === 'true';
+    e.stopPropagation();
 
-    if (!videoWallItems.find(item => item.id === sourceId)) {
-      let stream = null;
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+      console.log('Dropped data:', data);
 
-      if (sourceType === 'camera') {
+      if (data.type === 'camera') {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ 
+          // Request camera access with specific constraints
+          const stream = await navigator.mediaDevices.getUserMedia({
             video: {
               width: { ideal: 1280 },
-              height: { ideal: 720 }
+              height: { ideal: 720 },
+              facingMode: 'user'
+            }
+          });
+
+          // Create a new video element
+          const videoElement = document.createElement('video');
+          videoElement.autoplay = true;
+          videoElement.playsInline = true;
+          videoElement.muted = true;
+          videoElement.srcObject = stream;
+
+          // Create a new camera source
+          const newSource = {
+            id: `camera-${Date.now()}`,
+            type: 'camera',
+            label: 'Camera',
+            stream,
+            videoElement,
+            position: { x: 0, y: 0 },
+            size: { width: 320, height: 240 },
+            isDragging: false,
+            isResizing: false,
+            isFullscreen: false,
+            originalWidth: 320,
+            originalHeight: 240,
+            originalX: 0,
+            originalY: 0
+          };
+
+          // Find the largest empty space for the camera
+          const wallRect = wallRef.getBoundingClientRect();
+          const emptySpace = findLargestEmptySpace(videoWallItems, wallRect.width, wallHeight);
+          
+          if (emptySpace) {
+            newSource.position = {
+              x: emptySpace.x,
+              y: emptySpace.y
+            };
+            
+            // Adjust size to fit the available space
+            newSource.size = {
+              width: Math.min(emptySpace.width, 320),
+              height: Math.min(emptySpace.height, 240)
+            };
+          }
+
+          videoWallItems = [...videoWallItems, newSource];
+          dispatch('sourceAdded', { source: newSource });
+        } catch (err) {
+          console.error('Failed to access camera:', err);
+          error = 'Failed to access camera. Please check permissions.';
+        }
+      } else if (data.type === 'screen') {
+        try {
+          // Request screen sharing with specific constraints
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
             },
             audio: true
           });
-        } catch(err) {
-          console.error('Failed to get camera:', err);
-        }
-      } else if (sourceType === 'sharepoint' || sourceType === 'screen' || isScreenShare) {
-        try {
-          stream = await navigator.mediaDevices.getDisplayMedia({ 
-            video: {
-              cursor: "always",
-              displaySurface: "monitor"
-            },
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              sampleRate: 44100
-            }
+          
+          // Create a new screen share source with video element
+          const videoElement = document.createElement('video');
+          videoElement.autoplay = true;
+          videoElement.playsinline = true;
+          videoElement.muted = false;
+          videoElement.srcObject = stream;
+          
+          const newSource = {
+            id: `screen-${Date.now()}`,
+            type: 'screen',
+            label: 'Screen Share',
+            stream: stream,
+            videoElement: videoElement,
+            position: { x: 0, y: 0 },
+            size: { width: 640, height: 360 },
+            isDragging: false,
+            isResizing: false,
+            isFullscreen: false,
+            originalWidth: 640,
+            originalHeight: 360,
+            originalX: 0,
+            originalY: 0
+          };
+          
+          videoWallItems = [...videoWallItems, newSource];
+          dispatch('sourceAdded', { source: newSource });
+          
+          // Start playing the video
+          videoElement.play().catch(err => {
+            console.error('Failed to play screen share:', err);
           });
           
+          // Handle when user stops sharing
           stream.getVideoTracks()[0].onended = () => {
-            console.log('Screen sharing stopped');
-            videoWallItems = videoWallItems.filter(item => item.id !== sourceId);
+            videoWallItems = videoWallItems.filter(item => item.id !== newSource.id);
+            dispatch('sourceRemoved', { source: newSource });
           };
-        } catch(err) {
-          console.error('Failed to start screen sharing:', err);
+        } catch (err) {
+          console.error('Failed to get screen share:', err);
+          error = 'Failed to start screen sharing. Please check permissions.';
         }
-      }
-
-      if (stream || sourceType === 'presentation') {
-        const wallRect = wallRef.getBoundingClientRect();
-        const dropX = e.clientX - wallRect.left;
-        const dropY = e.clientY - wallRect.top;
+      } else if (data.type === 'pdf') {
+        try {
+          // Create a new PDF source
+          const newSource = {
+            id: `pdf-${Date.now()}`,
+            type: 'pdf',
+            label: data.label || 'PDF Document',
+            pdfUrl: data.pdfUrl,
+            position: { x: 0, y: 0 },
+            size: { width: 400, height: 600 },
+            isDragging: false,
+            isResizing: false,
+            isFullscreen: false,
+            originalWidth: 400,
+            originalHeight: 600,
+            originalX: 0,
+            originalY: 0
+          };
+          
+          // Find the largest empty space for the PDF
+          const wallRect = wallRef.getBoundingClientRect();
+          const emptySpace = findLargestEmptySpace(videoWallItems, wallRect.width, wallHeight);
+          
+          if (emptySpace) {
+            newSource.position = {
+              x: emptySpace.x,
+              y: emptySpace.y
+            };
+            
+            // Adjust size to fit the available space
+            newSource.size = {
+              width: Math.min(emptySpace.width, 400),
+              height: Math.min(emptySpace.height, 600)
+            };
+          }
+          
+          videoWallItems = [...videoWallItems, newSource];
+          dispatch('sourceAdded', { source: newSource });
+        } catch (err) {
+          console.error('Failed to load PDF:', err);
+          error = 'Failed to load PDF document.';
+        }
+      } else if (data.type === 'dashboard') {
+        // Create a new dashboard source
+        const newSource = {
+          id: `dashboard-${Date.now()}`,
+          type: 'dashboard',
+          label: 'Interactive Dashboard',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 600 },
+          isDragging: false,
+          isResizing: false,
+          isFullscreen: false,
+          originalWidth: 800,
+          originalHeight: 600,
+          originalX: 0,
+          originalY: 0
+        };
         
-        // Default size for new items
-        const defaultSize = {
-          width: 260,
-          height: 156,
-        };
-
-        // Create new item at drop position
-        const newItem = {
-          id: sourceId,
-          type: sourceType,
-          stream,
-          videoElement: null,
-          position: {
-            x: Math.max(0, Math.min(dropX - defaultSize.width/2, wallRect.width - defaultSize.width)),
-            y: Math.max(0, Math.min(dropY - defaultSize.height/2, wallHeight - defaultSize.height))
-          },
-          size: defaultSize
-        };
-
-        // Add the new item
-        videoWallItems = [...videoWallItems, newItem];
-
-        // Resize and reposition presentation if it exists
-        const presentationItem = videoWallItems.find(item => item.type === 'presentation');
-        if (presentationItem) {
-          videoWallItems = videoWallItems.map(item => {
-            if (item.id === presentationItem.id) {
-              return {
-                ...item,
-                position: { x: 0, y: 0 },
-                size: defaultSize
-              };
-            }
-            return item;
-          });
+        // Find the largest empty space for the dashboard
+        const wallRect = wallRef.getBoundingClientRect();
+        const emptySpace = findLargestEmptySpace(videoWallItems, wallRect.width, wallHeight);
+        
+        if (emptySpace) {
+          newSource.position = {
+            x: emptySpace.x,
+            y: emptySpace.y
+          };
+          newSource.size = {
+            width: Math.min(emptySpace.width, 800),
+            height: Math.min(emptySpace.height, 600)
+          };
         }
-
-        dispatch('sourceAdded', { sourceId, sourceType });
+        
+        videoWallItems = [...videoWallItems, newSource];
+        dispatch('sourceAdded', { source: newSource });
+      } else {
+        // For other sources (images, screen share)
+        const newSource = {
+          id: data.id || `source-${Date.now()}`,
+          type: data.type,
+          label: data.label,
+          thumbnail: data.thumbnail,
+          preview: data.preview,
+          stream: data.stream,
+          position: { x: 0, y: 0 },
+          size: { width: 260, height: 156 },
+          isDragging: false,
+          isResizing: false,
+          isFullscreen: false,
+          originalWidth: 260,
+          originalHeight: 156,
+          originalX: 0,
+          originalY: 0
+        };
+        
+        videoWallItems = [...videoWallItems, newSource];
+        dispatch('sourceAdded', { source: newSource });
       }
+    } catch (err) {
+      console.error('Error handling drop:', err);
+      error = 'Failed to add source: ' + (err.message || 'Unknown error');
     }
   }
 
   function handleVideoRef(element, item) {
     if (element && item.stream) {
       console.log('Setting up video element for:', item.id);
+      
+      // Ensure the video element is properly configured
+      element.autoplay = true;
+      element.playsinline = true;
+      element.muted = item.type !== 'sharepoint';
       element.srcObject = item.stream;
-      element.muted = true; // Mute by default to prevent audio feedback
       
       // Add controls for screen share
       if (item.type === 'sharepoint' || item.type === 'screen') {
         element.controls = true;
       }
       
-      element.play().catch(err => console.error('Failed to play video:', err));
+      // Start playing the video
+      element.play().catch(err => {
+        console.error('Failed to play video:', err);
+      });
     }
   }
 
@@ -583,6 +739,60 @@
       });
     }
   }
+
+  function handlePowerOff() {
+    // Reset all sources to their original sizes and positions
+    videoWallItems = videoWallItems.map(item => {
+      if (item.originalWidth && item.originalHeight && item.originalX !== undefined && item.originalY !== undefined) {
+        return {
+          ...item,
+          size: {
+            width: item.originalWidth,
+            height: item.originalHeight
+          },
+          position: {
+            x: item.originalX,
+            y: item.originalY
+          },
+          isFullscreen: false
+        };
+      }
+      return item;
+    });
+    
+    // Reset the wall to its original state
+    isFullscreen = false;
+    originalWidth = 800;
+    originalHeight = 600;
+    originalX = 0;
+    originalY = 0;
+    width = originalWidth;
+    height = originalHeight;
+    x = originalX;
+    y = originalY;
+    
+    // Reset the presentation source to its default size and position
+    const presentationSource = videoWallItems.find(item => item.type === 'presentation');
+    if (presentationSource) {
+      presentationSource.size = { width: 260, height: 156 };
+      presentationSource.position = { x: 0, y: 0 };
+      presentationSource.isFullscreen = false;
+    }
+  }
+
+  function handleCloseSource(item) {
+    // Stop any video streams before removing
+    if (item.stream) {
+      item.stream.getTracks().forEach(track => track.stop());
+    }
+    if (item.videoElement) {
+      item.videoElement.srcObject = null;
+    }
+    
+    // Remove the item from the wall
+    videoWallItems = videoWallItems.filter(i => i.id !== item.id);
+    dispatch('sourceRemoved', { source: item });
+  }
 </script>
 
 <div class="video-wall-container" bind:this={videoWallRef}>
@@ -649,6 +859,15 @@
         "
         on:mousedown={(e) => startDragging(e, item)}
       >
+        <button 
+          class="close-button"
+          on:click={() => handleCloseSource(item)}
+          on:mousedown|stopPropagation
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         {#if item.type === 'camera' || item.type === 'screen' || item.type === 'sharepoint'}
           <div class="video-container">
             <video 
@@ -694,7 +913,18 @@
             <div class="resize-handle sw" on:mousedown={(e) => startResizing(e, item, 'sw')}></div>
             <div class="resize-handle w" on:mousedown={(e) => startResizing(e, item, 'w')}></div>
           </div>
-        {:else if item.type === 'presentation'}
+        {:else if item.type === 'pdf'}
+          <div class="pdf-container">
+            <PdfViewer pdfUrl={item.pdfUrl} width="100%" height="100%" />
+          </div>
+        {:else if item.type === 'dashboard'}
+          <div class="dashboard-container">
+            <DashboardViewer 
+              width="{item.size.width}px"
+              height="{item.size.height}px"
+            />
+          </div>
+        {:else}
           <div class="presentation">
             <img 
               src={item.thumbnail} 
@@ -705,7 +935,9 @@
                 e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNlZWVlZWUiLz48cGF0aCBkPSJNMTAwIDUwVjE1ME0xNTAgMTAwSDUwIiBzdHJva2U9IiNjY2NjY2MiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
               }}
             />
-            <!-- Add resize handles for presentation -->
+          </div>
+        {/if}
+        <!-- Add resize handles for all items -->
             <div class="resize-handle nw" on:mousedown={(e) => startResizing(e, item, 'nw')}></div>
             <div class="resize-handle n" on:mousedown={(e) => startResizing(e, item, 'n')}></div>
             <div class="resize-handle ne" on:mousedown={(e) => startResizing(e, item, 'ne')}></div>
@@ -714,8 +946,6 @@
             <div class="resize-handle s" on:mousedown={(e) => startResizing(e, item, 's')}></div>
             <div class="resize-handle sw" on:mousedown={(e) => startResizing(e, item, 'sw')}></div>
             <div class="resize-handle w" on:mousedown={(e) => startResizing(e, item, 'w')}></div>
-          </div>
-        {/if}
       </div>
     {/each}
     <div 
@@ -792,44 +1022,67 @@
     background-color: transparent;
     z-index: 10;
     opacity: 0;
+    transition: opacity 0.2s ease;
   }
 
   /* Make the entire border resizable */
   .n, .s {
     width: 100%;
-    height: 100%;
+    height: 10px;
     left: 0;
     cursor: ns-resize;
   }
 
   .e, .w {
-    width: 100%;
+    width: 10px;
     height: 100%;
     top: 0;
     cursor: ew-resize;
   }
 
   .nw, .se, .ne, .sw {
-    width: 100%;
-    height: 100%;
+    width: 20px;
+    height: 20px;
   }
 
-  .n { top: 0; height: 2px; background: rgba(255, 255, 255, 0.2); }
-  .s { bottom: 0; height: 2px; background: rgba(255, 255, 255, 0.2); }
-  .e { right: 0; width: 2px; background: rgba(255, 255, 255, 0.2); }
-  .w { left: 0; width: 2px; background: rgba(255, 255, 255, 0.2); }
-  .nw { top: 0; left: 0; width: 20px; height: 20px; cursor: nw-resize; }
-  .ne { top: 0; right: 0; width: 20px; height: 20px; cursor: ne-resize; }
-  .sw { bottom: 0; left: 0; width: 20px; height: 20px; cursor: sw-resize; }
-  .se { bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize; }
+  .n { top: 0; }
+  .s { bottom: 0; }
+  .e { right: 0; }
+  .w { left: 0; }
+  .nw { top: 0; left: 0; cursor: nw-resize; }
+  .ne { top: 0; right: 0; cursor: ne-resize; }
+  .sw { bottom: 0; left: 0; cursor: sw-resize; }
+  .se { bottom: 0; right: 0; cursor: se-resize; }
 
   /* Show resize areas on hover */
   .video-item:hover .resize-handle {
     opacity: 1;
   }
 
-  .video-item:hover {
-    border: 2px solid rgba(255, 255, 255, 0.2);
+  .video-item:hover .n,
+  .video-item:hover .s {
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+  }
+
+  .video-item:hover .e,
+  .video-item:hover .w {
+    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.2), transparent);
+  }
+
+  .video-item:hover .nw,
+  .video-item:hover .ne,
+  .video-item:hover .sw,
+  .video-item:hover .se {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Add visual feedback during resize */
+  .video-item.resizing {
+    border: 2px solid rgba(255, 255, 255, 0.5);
+  }
+
+  .video-item.resizing .resize-handle {
+    opacity: 1;
   }
 
   @media (max-width: 1200px) {
@@ -1099,5 +1352,72 @@
     padding: 20px;
     width: 100%;
     height: 100%;
+  }
+
+  .pdf-container {
+    width: 100%;
+    height: 100%;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .dashboard-container {
+    width: 100%;
+    height: 100%;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .video-item[data-type="dashboard"] {
+    min-width: 400px;
+    min-height: 300px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .video-item[data-type="dashboard"] .resize-handle {
+    background: rgba(0, 0, 0, 0.1);
+    border: 2px solid rgba(0, 0, 0, 0.2);
+  }
+
+  .video-item[data-type="dashboard"].resizing {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  }
+
+  .close-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    z-index: 20;
+  }
+
+  .close-button:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  .video-item:hover .close-button {
+    opacity: 1;
+  }
+
+  .close-button svg {
+    width: 12px;
+    height: 12px;
   }
 </style> 

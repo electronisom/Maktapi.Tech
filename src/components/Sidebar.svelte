@@ -1,5 +1,5 @@
 <script>
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount } from "svelte";
   import homeIcon from './icons/home.svg';
   import displayIcon from './icons/display.svg';
   import cameraIcon from './icons/camera.svg';
@@ -28,7 +28,10 @@
     { id: "order", icon: orderIcon, label: "Order" }
   ];
 
-  const sourceItems = [
+  let fileInput;
+  let pdfThumbnail = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 384 512'%3E%3Cpath fill='%23ff4433' d='M181.9 256.1c-5-16-4.9-46.9-2-46.9 8.4 0 7.6 36.9 2 46.9zm-1.7 47.2c-7.7 20.2-17.3 43.3-28.4 62.7 18.3-7 39-17.2 62.9-21.9-12.7-9.6-24.9-23.4-34.5-40.8zM86.1 428.1c0 .8 13.2-5.4 34.9-40.2-6.7 6.3-29.1 24.5-34.9 40.2zM248 160h136v328c0 13.3-10.7 24-24 24H24c-13.3 0-24-10.7-24-24V24C0 10.7 10.7 0 24 0h200v136c0 13.2 10.8 24 24 24zm-8 171.8c-20-12.2-33.3-29-42.7-53.8 4.5-18.5 11.6-46.6 6.2-64.2-4.7-29.4-42.4-26.5-47.8-6.8-5 18.3-.4 44.1 8.1 77-11.6 27.6-28.7 64.6-40.8 85.8-.1 0-.1.1-.2.1-27.1 13.9-73.6 44.5-54.5 68 5.6 6.9 16 10 21.5 10 17.9 0 35.7-18 61.1-61.8 25.8-8.5 54.1-19.1 79-23.2 21.7 11.8 47.1 19.5 64 19.5 29.2 0 31.2-32 19.7-43.4-13.9-13.6-54.3-9.7-73.6-7.2zM377 105L279 7c-4.5-4.5-10.6-7-17-7h-6v128h128v-6.1c0-6.3-2.5-12.4-7-16.9zm-74.1 255.3c4.1-2.7-2.5-11.9-42.8-9 37.1 15.8 42.8 9 42.8 9z'/%3E%3C/svg%3E";
+
+  let sourceItems = [
     {
       id: "camera",
       label: "Camera",
@@ -43,6 +46,7 @@
         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPKy78AHsIfSkQV_mPCPN-9uLh6l2pORZPYw&s",
       preview: "A dark presentation slide with Thank You! text",
     },
+
     {
       id: "conference",
       label: "Conference",
@@ -64,6 +68,13 @@
       thumbnail:
         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ-idC4P_Is8-bn1i3nWJL-yJeTvT4zA1ibAw&s",
       preview: "A dashboard with graphs and charts",
+    },
+    {
+      id: "pdf-upload",
+      label: "Upload PDF",
+      thumbnail: pdfThumbnail,
+      preview: "Upload and view PDF files",
+      isPdfUpload: true
     },
   ];
 
@@ -99,19 +110,289 @@
     }
   }
 
+  let blobUrls = new Set();
+
+  onMount(() => {
+    // Initialize with source items and duplicates for infinite effect
+    items = [...sourceItems, ...sourceItems, ...sourceItems];
+    
+    // Calculate center offset based on container height
+    centerOffset = window.innerHeight / 2;
+    
+    // Initial positioning with slight delay for smooth animation
+    setTimeout(() => {
+      isInitialized = true;
+      positionItems();
+    }, 100);
+
+    const handleResize = () => {
+      centerOffset = window.innerHeight / 2;
+      positionItems();
+    };
+    
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+      window.removeEventListener('resize', handleResize);
+      // Clean up blob URLs
+      blobUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  });
+
+  function positionItems() {
+    const totalItems = items.length;
+    const angleStep = (2 * Math.PI) / totalItems;
+    const verticalOffset = -40; // Adjust vertical position
+    
+    items = items.map((item, index) => {
+      const angle = index * angleStep + currentRotation;
+      const y = Math.sin(angle) * radius + verticalOffset;
+      const z = Math.cos(angle) * radius;
+      const scale = mapRange(z, -radius, radius, 0.4, 1);
+      const opacity = mapRange(z, -radius, radius, 0.3, 1);
+      
+      return {
+        ...item,
+        style: `
+          transform: translate3d(-50%, ${y}px, ${z}px) 
+                    scale(${scale}) 
+                    rotateX(${-angle * 8}deg);
+          opacity: ${opacity};
+          z-index: ${Math.round((z + radius) * 10)};
+          transition: ${isInitialized ? 'all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'};
+        `
+      };
+    });
+  }
+
+  function mapRange(value, inMin, inMax, outMin, outMax) {
+    return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
+  }
+
+  function handleMouseDown(e) {
+    isDragging = true;
+    startY = e.clientY;
+    momentum = 0;
+    if (animationFrame) {
+      cancelAnimationFrame(animationFrame);
+    }
+  }
+
+  function handleMouseMove(e) {
+    if (!isDragging) return;
+    
+    const deltaY = e.clientY - startY;
+    const rotationDelta = deltaY * sensitivity;
+    currentRotation += rotationDelta;
+    momentum = rotationDelta * 0.8; // Reduced momentum for smoother movement
+    startY = e.clientY;
+    positionItems();
+  }
+
+  function handleMouseUp() {
+    isDragging = false;
+    if (Math.abs(momentum) > 0.0001) {
+      animationFrame = requestAnimationFrame(function animate() {
+        currentRotation += momentum;
+        momentum *= 0.92; // Smoother deceleration
+        positionItems();
+        if (Math.abs(momentum) > 0.0001) {
+          animationFrame = requestAnimationFrame(animate);
+        }
+      });
+    }
+  }
+
+  function handleWheel(e) {
+    e.preventDefault();
+    const deltaY = e.deltaY;
+    momentum += deltaY * 0.00008; // Reduced wheel sensitivity
+    if (!animationFrame) {
+      animationFrame = requestAnimationFrame(function animate() {
+        currentRotation += momentum;
+        momentum *= 0.92;
+        positionItems();
+        if (Math.abs(momentum) > 0.0001) {
+          animationFrame = requestAnimationFrame(animate);
+        } else {
+          animationFrame = null;
+        }
+      });
+    }
+  }
+
+  // Add touch event handlers for mobile support
+  function handleTouchStart(e) {
+    const touch = e.touches[0];
+    isDragging = true;
+    startY = touch.clientY;
+    momentum = 0;
+    if (animationFrame) {
+      cancelAnimationFrame(animationFrame);
+    }
+  }
+
+  function handleTouchMove(e) {
+    if (!isDragging) return;
+    
+    const touch = e.touches[0];
+    const deltaY = touch.clientY - startY;
+    const rotationDelta = deltaY * sensitivity;
+    currentRotation += rotationDelta;
+    momentum = rotationDelta * 0.8;
+    startY = touch.clientY;
+    positionItems();
+    
+    // Prevent page scrolling while dragging
+    e.preventDefault();
+  }
+
+  function handleTouchEnd() {
+    isDragging = false;
+    if (Math.abs(momentum) > 0.0001) {
+      animateWithMomentum();
+    }
+  }
+
+  function animateWithMomentum() {
+    if (animationFrame) {
+      cancelAnimationFrame(animationFrame);
+    }
+    
+    animationFrame = requestAnimationFrame(function animate() {
+      currentRotation += momentum;
+      momentum *= 0.92;
+      positionItems();
+      if (Math.abs(momentum) > 0.0001) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    });
+  }
+
+  async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      try {
+        // Create a blob URL for the PDF file
+        const pdfUrl = URL.createObjectURL(file);
+        blobUrls.add(pdfUrl); // Track for cleanup
+        
+        // Create new PDF source item
+        const pdfItem = {
+          id: `pdf-${Date.now()}`,
+          type: 'pdf',
+          label: file.name.length > 20 ? file.name.substring(0, 17) + '...' : file.name,
+          thumbnail: pdfThumbnail,
+          preview: "PDF Document",
+          pdfUrl: pdfUrl,
+          isPdf: true,
+          size: file.size,
+          lastModified: file.lastModified
+        };
+
+        // Add to source items and update the rotating items
+        sourceItems = [...sourceItems, pdfItem];
+        items = [...sourceItems, ...sourceItems, ...sourceItems];
+        
+        // Reset file input
+        event.target.value = '';
+        
+        // Trigger re-render of items
+        positionItems();
+
+        // Dispatch event to notify parent components
+        dispatch('sourceAdded', { item: pdfItem });
+      } catch (err) {
+        console.error('Error handling PDF upload:', err);
+        alert('Failed to upload PDF. Please try again.');
+      }
+    } else {
+      alert('Please select a valid PDF file.');
+    }
+  }
+
   function handleDragStart(e, item) {
-    e.dataTransfer.setData('sourceType', item.type || item.id);
-    e.dataTransfer.setData('sourceId', item.id);
-    e.dataTransfer.setData('isScreenShare', item.isScreenShare ? 'true' : 'false');
-    e.dataTransfer.effectAllowed = 'copy';
+    if (item.isPdfUpload) {
+      fileInput.click();
+      e.preventDefault();
+      return;
+    }
+
+    const dragData = {
+      id: item.id,
+      type: item.isPdf ? 'pdf' : (item.isScreenShare ? 'screen' : (item.id === 'camera' ? 'camera' : 'image')),
+      label: item.label,
+      thumbnail: item.thumbnail,
+      preview: item.preview,
+      pdfUrl: item.pdfUrl,
+      isScreenShare: item.isScreenShare || false,
+      isPdf: item.isPdf || false,
+      size: item.size,
+      lastModified: item.lastModified
+    };
+
+    try {
+      e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+      e.dataTransfer.effectAllowed = 'copy';
+      
+      const sourceContent = e.target.closest('.source-content');
+      if (sourceContent) {
+        sourceContent.style.opacity = '0.5';
+        setTimeout(() => {
+          sourceContent.style.opacity = '1';
+        }, 100);
+      }
+
+      dispatch('dragStart', { item: dragData });
+    } catch (err) {
+      console.error('Error starting drag:', err);
+    }
   }
 
   function handleSearch(e) {
     searchQuery = e.target.value;
   }
+
+  let container;
+  let isDragging = false;
+  let startY = 0;
+  let scrollTop = 0;
+  let currentRotation = 0;
+  let items = [];
+  let radius = 250;
+  let itemHeight = 80;
+  let itemWidth = 160;
+  let centerOffset;
+  let momentum = 0;
+  let animationFrame;
+  let sensitivity = 0.002;
+  let isInitialized = false;
 </script>
 
-<div class="sidebar-container" >
+<!-- Add hidden file input -->
+<input
+  type="file"
+  accept=".pdf"
+  style="display: none"
+  bind:this={fileInput}
+  on:change={handleFileUpload}
+/>
+
+<div 
+  class="sidebar-container" 
+  bind:this={container}
+  on:mousedown={handleMouseDown}
+  on:mousemove={handleMouseMove}
+  on:mouseup={handleMouseUp}
+  on:mouseleave={handleMouseUp}
+  on:touchstart={handleTouchStart}
+  on:touchmove={handleTouchMove}
+  on:touchend={handleTouchEnd}
+  on:wheel={handleWheel}
+>
   <div class="layout">
     <!-- Left Icon Menu -->
     <div class="icon-menu">
@@ -179,26 +460,23 @@
       </div>
 
       <div class="source-section">
-        <div class="source-items">
-          {#each filteredSourceItems as item}
-            <button
+        <div class="sources-container">
+          {#each items as item, i (item.id + i)}
+            <div 
               class="source-item"
-              class:active={activeSourceItem === item.id}
-              on:click={() => handleSourceClick(item.id)}
               draggable="true"
               on:dragstart={(e) => handleDragStart(e, item)}
+              style={item.style}
             >
-              <div class="thumbnail">
+              <div class="source-content">
                 <img
                   src={item.thumbnail}
                   alt={item.preview}
                   class="thumbnail-img"
                 />
+                <span class="source-label">{item.label}</span>
               </div>
-              <div class="item-info">
-                <span class="label">{item.label}</span>
               </div>
-            </button>
           {/each}
         </div>
       </div>
@@ -211,7 +489,6 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
-    /* position: relative; */
     width: 317px;
   }
   .layout {
@@ -321,9 +598,11 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
-    /* border-radius: 24px; */
-    border-top-right-radius:24px;
+    border-top-right-radius: 24px;
     border-bottom-right-radius: 24px;
+    perspective: 2000px;
+    overflow: hidden;
+    position: relative;
   }
 
   .search-container {
@@ -335,9 +614,11 @@
 
   .source-section {
     flex: 1;
-    min-height: 0;
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+    align-items: center;
   }
 
   .section-title {
@@ -348,41 +629,84 @@
     flex-shrink: 0;
   }
 
-  .source-items {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    overflow-y: auto;
-    /* padding-right: 0.5rem; */
-    padding-bottom: 1.5rem;
-    /* margin-right: -0.5rem; */
-    align-items: center;
-    height: 100%;
+  .sources-container {
+    position: relative;
     width: 100%;
+    height: calc(100vh - 200px);
+    transform-style: preserve-3d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 1200px;
+    overflow: visible;
+    margin: 20px 0;
   }
 
-  /* Scrollbar Styles */
-  .source-items::-webkit-scrollbar {
-    width: 0px;
+  .source-item {
+    position: absolute;
+    width: 160px;
+    height: 80px;
+    left: 50%;
+    transform-origin: 50% 50% -250px;
+    cursor: grab;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
   }
 
-  .source-items::-webkit-scrollbar-track {
-    background: transparent;
+  .source-content {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease-out;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-font-smoothing: subpixel-antialiased;
   }
 
-  .source-items::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border-radius: 0px;
+  .source-content:hover {
+    transform: scale(1.05) translateZ(0);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
   }
 
-  .source-items::-webkit-scrollbar-thumb:hover {
-    background-color: transparent;
+  .source-content:active {
+    transform: scale(0.98) translateZ(0);
   }
 
-  /* Firefox scrollbar */
-  .source-items {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
+  .source-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    pointer-events: none;
+  }
+
+  .source-label {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 16px);
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    backdrop-filter: blur(4px);
+  }
+
+  .source-item:active {
+    cursor: grabbing;
   }
 
   .search-input {
@@ -404,84 +728,8 @@
     background-color: #1a1a1a;
   }
 
-  .source-item {
-    display: flex;
-    flex-direction: column;
-    padding: 4px;
-    background-color: black;
-    border: 0.1px solid rgba(110, 110, 110, 0.61);
-    border-radius: 8px;
-    color: #ffffff;
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    transition: all 0.2s ease;
-    height: 120px;
-  }
-
-  .source-item:hover {
-    background-color: #1a1a1a;
-    border-color: #333333;
-  }
-
-  /* .source-item.active {
-    background-color: #1A1A1A;
-    border-color: #4CAF50;
-  } */
-
-  .thumbnail {
-    position: relative;
-    width: 100%;
-    min-height: 114px;
-    background-color: #000000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-
-  .thumbnail-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s ease;
-  }
-
-  .item-info {
-    padding: 0.75rem 1rem;
-    background-color: transparent;
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    margin-top: -6vh;
-  }
-
-  .label {
-    font-size: 12px;
-    color: #ffffff;
-    font-weight: 500;
-  }
-
   .icon {
     font-size: 1.25rem;
-  }
-
-  .thumbnail-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
-
-  /* Add CSS for home icon */
-  .home-icon {
-    width: 20px;
-    height: 20px;
-    filter: invert(1);
   }
 
   .menu-item .icon {
@@ -494,5 +742,67 @@
     width: 20px;
     height: 20px;
     filter: brightness(0) invert(1);
+  }
+
+  .sidebar-container:active {
+    cursor: grabbing;
+  }
+
+  /* Add smooth scrollbar for touch devices */
+  @media (hover: none) {
+    .sidebar-container {
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+
+    .sidebar-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar-container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+  }
+
+  .source-item[data-pdf-upload="true"] .source-content {
+    background: rgba(255, 68, 51, 0.1);
+    border: 1px dashed rgba(255, 68, 51, 0.5);
+  }
+
+  .source-item[data-pdf-upload="true"]:hover .source-content {
+    background: rgba(255, 68, 51, 0.15);
+    border: 1px dashed rgba(255, 68, 51, 0.7);
+  }
+
+  .source-item[data-pdf-upload="true"] img {
+    width: 40px;
+    height: 40px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    object-fit: contain;
+  }
+
+  /* Improve performance */
+  .sources-container {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: transform;
+  }
+
+  @media (max-width: 768px) {
+    .sidebar-container {
+      width: 100%;
+    }
+    
+    .icon-menu {
+      width: 60px;
+    }
+    
+    .source-panel {
+      width: calc(100% - 60px);
+    }
   }
 </style>
