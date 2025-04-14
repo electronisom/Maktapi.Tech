@@ -19,9 +19,9 @@
 
   // State management
   let activeMenuItem = 'mic';
-  let isMicOn = true;
-  let isSpeakerOn = true;
-  let isVideoOn = true;
+  let isMicOn = false;
+  let isSpeakerOn = false;
+  let isVideoOn = false;
   let isScreenSharing = false;
   let isRecording = false;
   let showVolumeSlider = false;
@@ -45,19 +45,20 @@
       slider.style.setProperty('--volume-percent', `${volume}%`);
     }
 
-    // Check initial permissions
+    // Check for microphone permission
     try {
-      const permissions = await navigator.permissions.query({ name: 'microphone' });
-      hasMicPermission = permissions.state === 'granted';
+      const micPermission = await navigator.permissions.query({ name: 'microphone' });
+      hasMicPermission = micPermission.state === 'granted';
     } catch (e) {
-      console.log('Microphone permission check failed:', e);
+      console.error('Error checking microphone permission:', e);
     }
 
+    // Check for camera permission
     try {
-      const permissions = await navigator.permissions.query({ name: 'camera' });
-      hasVideoPermission = permissions.state === 'granted';
+      const cameraPermission = await navigator.permissions.query({ name: 'camera' });
+      hasVideoPermission = cameraPermission.state === 'granted';
     } catch (e) {
-      console.log('Camera permission check failed:', e);
+      console.error('Error checking camera permission:', e);
     }
   });
 
@@ -70,9 +71,15 @@
 
   // Cleanup on component destroy
   onDestroy(() => {
-    stopStream(micStream);
-    stopStream(videoStream);
-    stopStream(screenStream);
+    if (micStream) {
+      stopStream(micStream);
+    }
+    if (videoStream) {
+      stopStream(videoStream);
+    }
+    if (screenStream) {
+      stopStream(screenStream);
+    }
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop();
     }
@@ -291,16 +298,22 @@
               dispatch('error', { message: 'Failed to start camera' });
               return;
             }
+            isVideoOn = true;
+            dispatch('videoToggle', { 
+              active: true,
+              action: 'startVideo',
+              stream: videoStream
+            });
           } else {
             stopStream(videoStream);
             videoStream = null;
+            isVideoOn = false;
+            dispatch('videoToggle', { 
+              active: false,
+              action: 'stopVideo',
+              stream: null
+            });
           }
-          isVideoOn = !isVideoOn;
-          dispatch('videoToggle', { 
-            active: isVideoOn,
-            action: isVideoOn ? 'startVideo' : 'stopVideo',
-            stream: isVideoOn ? videoStream : null
-          });
         } catch (e) {
           console.error('Camera toggle failed:', e);
           dispatch('error', { message: 'Failed to toggle camera' });
@@ -383,7 +396,15 @@
   ];
 
   function handleMenuClick(item) {
-    item.action();
+    if (item.id === 'speaker') {
+      showVolumeSlider = !showVolumeSlider;
+      if (!showVolumeSlider) {
+        isSpeakerOn = !isSpeakerOn;
+        dispatch('speakerToggle', { active: isSpeakerOn });
+      }
+    } else {
+      item.action();
+    }
   }
 
   function handleVolumeChange(event) {
@@ -395,7 +416,9 @@
 
   // Add click handler for closing volume slider when clicking outside
   function handleClickOutside(event) {
-    if (showVolumeSlider && !event.target.closest('.menu-item-container')) {
+    const volumeSlider = event.target.closest('.volume-slider');
+    const speakerButton = event.target.closest('.menu-item');
+    if (showVolumeSlider && !volumeSlider && !speakerButton) {
       showVolumeSlider = false;
     }
   }
@@ -412,7 +435,7 @@
 <svelte:window on:click={handleClickOutside} />
 
 <div class="right-menu">
-  {#if isVideoOn && videoStream}
+  {#if isVideoOn && videoStream && document.getElementById('camera-feed')?.srcObject}
     <div class="camera-feed-container">
       <video 
         id="camera-feed"
@@ -438,18 +461,20 @@
           </span>
         </button>
         
-        {#if item.id === 'speaker' && showVolumeSlider}
-          <div class="volume-slider" 
-            on:click|stopPropagation
-            transition:slide>
-            <input 
-              type="range" 
-              min="0" 
-              max="100" 
-              bind:value={volume}
-              on:input={handleVolumeChange}
-            />
-          </div>
+        {#if item.id === 'speaker'}
+          {#if showVolumeSlider}
+            <div class="volume-slider" 
+              on:click|stopPropagation
+              transition:slide>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                bind:value={volume}
+                on:input={handleVolumeChange}
+              />
+            </div>
+          {/if}
         {/if}
       </div>
     {/each}
@@ -478,9 +503,11 @@
     border-top-left-radius: 50px;
     border-bottom-left-radius: 50px;
     position: relative;
-    overflow: hidden;
+    overflow-y: scroll;
+    overflow-x: hidden;
     border-radius: 20px;
     margin-right: 1px;
+    transform: scaleY(1);
   }
 
   .right-menu::before {
@@ -503,16 +530,20 @@
     flex-direction: column;
     gap: 0.5rem;
     width: 100%;
+    transform: scaleY(1);
   }
 
   .menu-item-container {
     position: relative;
     display: flex;
     align-items: center;
+    transform: scaleY(1);
   }
-.menu-item-container:first-child{
-  margin-bottom: 15vh;
-}
+
+  .menu-item-container:first-child{
+    margin-bottom: 15vh;
+  }
+
   .menu-item{
     margin-left: 17px;
     width: 40px;
@@ -583,6 +614,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
   .volume-slider input[type="range"] {
@@ -634,6 +666,7 @@
     object-fit: cover;
     transform: scaleX(-1); /* Mirror the video */
   }
+
   .menu-item-container:last-child{
     margin-top: 6vh;
     margin-bottom: 0px;

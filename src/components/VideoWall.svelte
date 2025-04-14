@@ -1,6 +1,8 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import PdfViewer from './PdfViewer.svelte';
+  import exportIcon from './icons/export.svg';
+  import importIcon from './icons/import.svg';
   import DashboardViewer from './DashboardViewer.svelte';
   const dispatch = createEventDispatcher();
 
@@ -34,6 +36,9 @@
   let isFullscreen = false;
   let videoWallRef;
   let originalDimensions = new Map(); // Track original dimensions of sources
+  let error = null;
+  let isExporting = false;
+  let exportStatus = '';
 
   // Add new functions for button actions
   function handleSelectAll() {
@@ -657,14 +662,6 @@
     }
   }
 
-  function startWallResize(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    isResizingWall = true;
-    initialY = e.clientY;
-    initialHeight = wallHeight;
-  }
-
   function handleWallResize(e) {
     if (!isResizingWall) return;
     
@@ -793,6 +790,124 @@
     videoWallItems = videoWallItems.filter(i => i.id !== item.id);
     dispatch('sourceRemoved', { source: item });
   }
+
+  async function exportSourcesToJson() {
+    try {
+      isExporting = true;
+      exportStatus = 'Exporting...';
+
+      // Prepare the data
+      const sourcesData = videoWallItems.map(item => ({
+        id: item.id,
+        type: item.type,
+        label: item.label,
+        position: item.position,
+        size: item.size,
+        isFullscreen: item.isFullscreen,
+        originalWidth: item.originalWidth,
+        originalHeight: item.originalHeight,
+        originalX: item.originalX,
+        originalY: item.originalY,
+        // Add any other relevant properties
+        ...(item.type === 'camera' && { stream: 'camera_stream' }),
+        ...(item.type === 'screen' && { stream: 'screen_stream' }),
+        ...(item.type === 'pdf' && { pdfUrl: item.pdfUrl }),
+        ...(item.type === 'presentation' && { thumbnail: item.thumbnail })
+      }));
+
+      // Create the JSON file
+      const jsonData = JSON.stringify(sourcesData, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      // Create download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `video_wall_sources_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      exportStatus = 'Export successful!';
+      setTimeout(() => {
+        exportStatus = '';
+      }, 2000);
+    } catch (err) {
+      console.error('Export failed:', err);
+      exportStatus = 'Export failed!';
+    } finally {
+      isExporting = false;
+    }
+  }
+
+  async function importSourcesFromJson(event) {
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const sourcesData = JSON.parse(e.target.result);
+          
+          // Clear existing sources
+          videoWallItems = [];
+          
+          // Recreate sources from JSON data
+          for (const source of sourcesData) {
+            if (source.type === 'camera') {
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                  facingMode: 'user'
+                }
+              });
+              const videoElement = document.createElement('video');
+              videoElement.autoplay = true;
+              videoElement.playsInline = true;
+              videoElement.muted = true;
+              videoElement.srcObject = stream;
+
+              videoWallItems = [...videoWallItems, {
+                ...source,
+                stream,
+                videoElement
+              }];
+            } else if (source.type === 'screen') {
+              const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                  width: { ideal: 1920 },
+                  height: { ideal: 1080 }
+                }
+              });
+              const videoElement = document.createElement('video');
+              videoElement.autoplay = true;
+              videoElement.playsInline = true;
+              videoElement.muted = true;
+              videoElement.srcObject = stream;
+
+              videoWallItems = [...videoWallItems, {
+                ...source,
+                stream,
+                videoElement
+              }];
+            } else {
+              videoWallItems = [...videoWallItems, source];
+            }
+          }
+        } catch (err) {
+          console.error('Failed to import sources:', err);
+          error = 'Failed to import sources. Please check the file format.';
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error('Import failed:', err);
+      error = 'Failed to import sources.';
+    }
+  }
 </script>
 
 <div class="video-wall-container" bind:this={videoWallRef}>
@@ -817,6 +932,36 @@
             </svg>
           {/if}
         </button>
+        <div class="controls">
+          <button 
+            class="control-button" 
+            on:click={exportSourcesToJson}
+            disabled={isExporting}
+            title="Export Sources"
+          >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <g>
+                <path d="M17.2 12.2h-8.5c.9.5 1.6 1.2 2.2 2h6.3c.3 0 .5.2.5.5v9.5c0 .3-.2.5-.5.5H7.7c-.3 0-.5-.2-.5-.5v-5.8c-.2-.1-.5-.2-.8-.3-.2.5-.5.9-.9 1.1-.1.1-.2.1-.3.1v4.9c0 1.4 1.1 2.5 2.5 2.5h9.5c1.4 0 2.5-1.1 2.5-2.5v-9.5c0-1.4-1.1-2.5-2.5-2.5z"/>
+                <path d="M5.2 7c2.1 0 3.9 1.1 4.9 2.8.1.1.3.2.4.2 0 0 .1 0 .1 0 .2-.1.4-.3.4-.5v-.1c0-3.2-2.6-5.9-5.8-5.9V2.6c0-.2-.1-.4-.3-.5-.1 0-.2-.1-.3-.1-.1 0-.2 0-.3.1L.2 4.8c-.1.1-.2.3-.2.5 0 .2.1.3.2.4l4 2.8c.1.1.2.1.3.1.1 0 .2 0 .3-.1.2-.1.3-.3.3-.5V7z"/>
+              </g>
+            </svg>
+          </button>
+          <label class="control-button" title="Import Sources">
+            <input 
+              type="file" 
+              accept=".json" 
+              on:change={importSourcesFromJson}
+              style="display: none"
+            />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor">
+              <path d="M12 4L12 14M12 14L15 11M12 14L9 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 20C7.58172 20 4 16.4183 4 12M20 12C20 14.5264 18.8289 16.7792 17 18.2454" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </label>
+          {#if exportStatus}
+            <span class="export-status">{exportStatus}</span>
+          {/if}
+        </div>
       </div>
     </div>
     <div class="right">
@@ -832,18 +977,15 @@
     on:drop={handleDrop}
     on:mousemove={(e) => {
       if (isResizing) handleResize(e);
-      else if (isResizingWall) handleWallResize(e);
       else if (draggedItem) handleDrag(e);
     }}
     on:mouseup={() => {
       stopDragging();
       stopResizing();
-      stopWallResize();
     }}
     on:mouseleave={() => {
       stopDragging();
       stopResizing();
-      stopWallResize();
     }}
     style="height: {wallHeight}px;"
   >
@@ -858,6 +1000,7 @@
           height: {item.size.height}px;
         "
         on:mousedown={(e) => startDragging(e, item)}
+        class:resizing={isResizing && resizingItem?.id === item.id}
       >
         <button 
           class="close-button"
@@ -903,15 +1046,6 @@
                 </button>
               </div>
             {/if}
-            <!-- Resize handles -->
-            <div class="resize-handle nw" on:mousedown={(e) => startResizing(e, item, 'nw')}></div>
-            <div class="resize-handle n" on:mousedown={(e) => startResizing(e, item, 'n')}></div>
-            <div class="resize-handle ne" on:mousedown={(e) => startResizing(e, item, 'ne')}></div>
-            <div class="resize-handle e" on:mousedown={(e) => startResizing(e, item, 'e')}></div>
-            <div class="resize-handle se" on:mousedown={(e) => startResizing(e, item, 'se')}></div>
-            <div class="resize-handle s" on:mousedown={(e) => startResizing(e, item, 's')}></div>
-            <div class="resize-handle sw" on:mousedown={(e) => startResizing(e, item, 'sw')}></div>
-            <div class="resize-handle w" on:mousedown={(e) => startResizing(e, item, 'w')}></div>
           </div>
         {:else if item.type === 'pdf'}
           <div class="pdf-container">
@@ -937,7 +1071,7 @@
             />
           </div>
         {/if}
-        <!-- Add resize handles for all items -->
+        <!-- Resize handles for all items -->
             <div class="resize-handle nw" on:mousedown={(e) => startResizing(e, item, 'nw')}></div>
             <div class="resize-handle n" on:mousedown={(e) => startResizing(e, item, 'n')}></div>
             <div class="resize-handle ne" on:mousedown={(e) => startResizing(e, item, 'ne')}></div>
@@ -948,10 +1082,6 @@
             <div class="resize-handle w" on:mousedown={(e) => startResizing(e, item, 'w')}></div>
       </div>
     {/each}
-    <div 
-      class="wall-resize-handle"
-      on:mousedown={startWallResize}
-    ></div>
   </div>
 </div>
 
@@ -962,11 +1092,6 @@
   }
 
   /* Make resize handles larger for touch devices */
-  .resize-handle {
-    width: 20px !important;
-    height: 20px !important;
-  }
-
   .video-wall-container {
     width: 100%;
     height: 100%;
@@ -974,8 +1099,6 @@
     border-radius: 12px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    max-width: 100%;
     overflow: hidden;
   }
 
@@ -985,9 +1108,6 @@
     padding: 1rem;
     background-color: white;
     width: 100%;
-    height: fit-content;
-    transition: height 0.2s ease;
-    min-height: 300px;
     box-sizing: border-box;
   }
 
@@ -1019,30 +1139,30 @@
   /* Resize handles for the entire border */
   .resize-handle {
     position: absolute;
-    background-color: transparent;
+    background-color: rgba(255, 255, 255, 0.3);
     z-index: 10;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
   }
 
   /* Make the entire border resizable */
   .n, .s {
     width: 100%;
-    height: 10px;
+    height: 12px;
     left: 0;
     cursor: ns-resize;
   }
 
   .e, .w {
-    width: 10px;
+    width: 12px;
     height: 100%;
     top: 0;
     cursor: ew-resize;
   }
 
   .nw, .se, .ne, .sw {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
   }
 
   .n { top: 0; }
@@ -1059,30 +1179,15 @@
     opacity: 1;
   }
 
-  .video-item:hover .n,
-  .video-item:hover .s {
-    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
-  }
-
-  .video-item:hover .e,
-  .video-item:hover .w {
-    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.2), transparent);
-  }
-
-  .video-item:hover .nw,
-  .video-item:hover .ne,
-  .video-item:hover .sw,
-  .video-item:hover .se {
-    background: rgba(255, 255, 255, 0.2);
+  .video-item.resizing .resize-handle {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.5);
   }
 
   /* Add visual feedback during resize */
   .video-item.resizing {
     border: 2px solid rgba(255, 255, 255, 0.5);
-  }
-
-  .video-item.resizing .resize-handle {
-    opacity: 1;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
   }
 
   @media (max-width: 1200px) {
@@ -1215,15 +1320,6 @@
     background-color: rgba(255, 255, 255, 0.5);
   }
 
-  .video-wall-container:fullscreen .wall-resize-handle {
-    height: 16px;
-  }
-
-  .video-wall-container:fullscreen .wall-resize-handle::before {
-    height: 6px;
-    opacity: 0.7;
-  }
-
   .video-item:hover {
     border: 2px solid rgba(255, 255, 255, 0.2);
   }
@@ -1296,40 +1392,16 @@
     opacity: 1;
   }
 
-  .wall-resize-handle {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 12px;
-    background: transparent;
-    cursor: ns-resize;
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .wall-resize-handle:hover {
-    background: rgba(0, 0, 0, 0.1);
-  }
-
-  .wall-resize-handle::before {
-    content: '';
-    width: 40px;
-    height: 4px;
-    background: #666;
-    border-radius: 2px;
-    opacity: 0.5;
-  }
-
-  .wall-resize-handle:hover::before {
-    opacity: 0.8;
-  }
-
-  /* Add a subtle highlight effect when resizing */
+  .wall-resize-handle,
+  .wall-resize-handle::before,
+  .wall-resize-handle:hover,
+  .wall-resize-handle:hover::before,
   .video-wall-container.resizing {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: none;
+  }
+
+  .video-wall-container.resizing {
+    /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); */
   }
 
   .wall-header {
@@ -1420,4 +1492,54 @@
     width: 12px;
     height: 12px;
   }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .control-button {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(14, 165, 0, 0.603);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #ffffff;
+    transition: all 0.2s ease;
+    scale: 0.8;
+  }
+  .control-button:hover {
+    scale: 1.2;
+  }
+  .control-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .export-status {
+    color: #4CAF50;
+    font-size: 14px;
+    font-weight: 500;
+    margin-left: 8px;
+  }
+
+  /* Remove old button styles */
+  .export-button,
+  .import-button {
+    display: none;
+    width: 12px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;  
+  }
+  /* .export-button,.import-button svg{
+    width: 22px;
+    height: 22px;
+  } */
 </style> 

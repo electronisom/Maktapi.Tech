@@ -157,9 +157,9 @@
       return {
         ...item,
         style: `
-          transform: translate3d(-50%, ${y}px, ${z}px) 
-                    scale(${scale}) 
-                    rotateX(${-angle * 8}deg);
+          transform: translate3d(-50%, ${y}px, ${z}px) ;
+                    scale(${scale}) ;
+                    rotateX(${-angle * 3}deg);
           opacity: ${opacity};
           z-index: ${Math.round((z + radius) * 10)};
           transition: ${isInitialized ? 'all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'};
@@ -600,7 +600,7 @@
     height: 100vh;
     border-top-right-radius: 24px;
     border-bottom-right-radius: 24px;
-    perspective: 2000px;
+    perspective: 1500px;
     overflow: hidden;
     position: relative;
   }
@@ -637,7 +637,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    perspective: 1200px;
+    perspective: 1500px;
     overflow: visible;
     margin: 20px 0;
   }
@@ -647,15 +647,18 @@
     width: 160px;
     height: 80px;
     left: 50%;
-    transform-origin: 50% 50% -250px;
+    transform-origin: 60%;
     cursor: grab;
     will-change: transform, opacity;
     backface-visibility: hidden;
+    /* margin-bottom: 20px; */
+    margin-top: 20px;
   }
-
+  
   .source-content {
+    /* margin-bottom: 20px; */
     width: 100%;
-    height: 100%;
+    height: 105%;
     padding: 0;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 8px;
@@ -664,13 +667,13 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
     transition: all 0.2s ease-out;
-    transform: translateZ(0);
+    /* transform: translateZ(0); */
     backface-visibility: hidden;
     -webkit-font-smoothing: subpixel-antialiased;
   }
 
   .source-content:hover {
-    transform: scale(1.05) translateZ(0);
+    transform: scale(1.05) ;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
     border-color: rgba(255, 255, 255, 0.2);
   }
@@ -781,7 +784,7 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    /* transform: translate(-50%, -50%); */
     object-fit: contain;
   }
 

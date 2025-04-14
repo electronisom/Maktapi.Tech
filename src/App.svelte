@@ -22,6 +22,7 @@
 	function handleSourceAdded(event) {
 		console.log('Source added:', event.detail);
 	}
+	
 </script>
 
 <main>
