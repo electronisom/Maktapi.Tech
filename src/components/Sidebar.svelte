@@ -16,6 +16,17 @@
   let activeMenuItem = "display";
   let activeSourceItem = "camera";
   let searchQuery = "";
+  let radius = 300; // Increased radius for more spacing
+  let verticalOffset = -60; // Increased vertical offset for more spacing
+  let items = [];
+  let currentRotation = 0;
+  let isDragging = false;
+  let startY = 0;
+  let momentum = 0;
+  let animationFrame = null;
+  let isInitialized = false;
+  let centerOffset = 0;
+  const sensitivity = 0.04;
 
   const menuItems = [
     { id: "home", icon: homeIcon, label: "Home" },
@@ -145,7 +156,6 @@
   function positionItems() {
     const totalItems = items.length;
     const angleStep = (2 * Math.PI) / totalItems;
-    const verticalOffset = -40; // Adjust vertical position
     
     items = items.map((item, index) => {
       const angle = index * angleStep + currentRotation;
@@ -357,19 +367,7 @@
   }
 
   let container;
-  let isDragging = false;
-  let startY = 0;
   let scrollTop = 0;
-  let currentRotation = 0;
-  let items = [];
-  let radius = 250;
-  let itemHeight = 80;
-  let itemWidth = 160;
-  let centerOffset;
-  let momentum = 0;
-  let animationFrame;
-  let sensitivity = 0.002;
-  let isInitialized = false;
 </script>
 
 <!-- Add hidden file input -->
@@ -428,7 +426,7 @@
       </nav>
 
       <div class="bottom-icons">
-        <button class="menu-item">
+        <button class="menu-item settings">
           <span class="icon"><svg width="22" height="20" viewBox="0 0 22 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M2.75 7.59163V12.4C2.75 14.1666 2.75 14.1666 4.58333 15.2916L9.625 17.9416C10.3858 18.3416 11.6233 18.3416 12.375 17.9416L17.4167 15.2916C19.25 14.1666 19.25 14.1666 19.25 12.4083V7.59163C19.25 5.8333 19.25 5.8333 17.4167 4.7083L12.375 2.0583C11.6233 1.6583 10.3858 1.6583 9.625 2.0583L4.58333 4.7083C2.75 5.8333 2.75 5.8333 2.75 7.59163Z" stroke="#BFBFBF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="mix-blend-mode:plus-darker"/>
             <path d="M11 12.5C12.5188 12.5 13.75 11.3807 13.75 10C13.75 8.61929 12.5188 7.5 11 7.5C9.48122 7.5 8.25 8.61929 8.25 10C8.25 11.3807 9.48122 12.5 11 12.5Z" stroke="#BFBFBF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="mix-blend-mode:plus-darker"/>
@@ -581,12 +579,15 @@
 
   .exit {
     margin-bottom: 10px;
+    background-color: transparent;
   }
 
   .exit .icon {
     background-color: none !important;
   }
-
+  .settings {
+    background-color: transparent;
+  }
   /* Source Panel Styles */
   .source-panel {
     width: 267px;
@@ -639,7 +640,9 @@
     justify-content: center;
     perspective: 1500px;
     overflow: visible;
+    gap: 20px;
     margin: 20px 0;
+    margin-top: 50px;
   }
 
   .source-item {
@@ -651,8 +654,8 @@
     cursor: grab;
     will-change: transform, opacity;
     backface-visibility: hidden;
-    /* margin-bottom: 20px; */
-    margin-top: 20px;
+    margin-bottom: 20px;
+    margin-top: 50px;
   }
   
   .source-content {

@@ -1,18 +1,21 @@
 <script>
-	import Sidebar from './components/Sidebar.svelte';
-	import RightMenu from './components/RightMenu.svelte';
-	import Header from './components/Header.svelte';
-	import VideoWall from './components/VideoWall.svelte';
-	import TableMonitor from './components/TableMonitor.svelte';
-	
+	import Sidebar from "./components/Sidebar.svelte";
+	import RightMenu from "./components/RightMenu.svelte";
+	import Header from "./components/Header.svelte";
+	import VideoWall from "./components/VideoWall.svelte";
+	import TableMonitor from "./components/TableMonitor.svelte";
+	import Lighting from "./components/Lighting.svelte";
+	import LightingSidebar from "./components/lightingsidebar.svelte";
 	let isRecording = false;
+	let activeView = "display"; // Default view
 
 	function handleMenuSelect(event) {
-		console.log('Selected menu item:', event.detail.id);
+		activeView = event.detail.id;
+		console.log("Selected menu item:", event.detail.id);
 	}
 
 	function handleSourceSelect(event) {
-		console.log('Selected source:', event.detail.id);
+		console.log("Selected source:", event.detail.id);
 	}
 
 	function handleRecordingToggle(event) {
@@ -20,30 +23,50 @@
 	}
 
 	function handleSourceAdded(event) {
-		console.log('Source added:', event.detail);
+		console.log("Source added:", event.detail);
 	}
-	
+
+	function handleControlToggle(event) {
+		console.log("Control toggled:", event.detail);
+	}
 </script>
 
 <main>
-	<Sidebar 
-		on:menuSelect={handleMenuSelect}
-		on:sourceSelect={handleSourceSelect}
-	/>
+	{#if activeView === "imersive"}
+		<LightingSidebar
+			on:menuSelect={handleMenuSelect}
+			on:sourceSelect={handleSourceSelect}
+		/>
+	{:else}
+		<Sidebar
+			on:menuSelect={handleMenuSelect}
+			on:sourceSelect={handleSourceSelect}
+		/>
+	{/if}
 	<div class="content">
-		<Header {isRecording} />
+		{#if activeView === "display"}
+			<Header {isRecording} />
+		{/if}
 		<div class="main-content">
-			<div class="video-wall-section">
-				<VideoWall on:sourceAdded={handleSourceAdded} />
-			</div>
-			<div class="monitor-section">
-				<TableMonitor />
-			</div>
+			{#if activeView === "display"}
+				<div class="video-wall-section">
+					<VideoWall on:sourceAdded={handleSourceAdded} />
+				</div>
+				<div class="monitor-section">
+					<TableMonitor />
+				</div>
+			{:else if activeView === "imersive"}
+				<div class="lighting-section">
+					<Lighting on:controlToggle={handleControlToggle} />
+				</div>
+			{/if}
 		</div>
 	</div>
-	<RightMenu 
-		on:recordingToggle={handleRecordingToggle}
-	/>
+	{#if activeView === "imersive"}
+		<!-- <RightMenu on:recordingToggle={handleRecordingToggle} /> -->
+	{:else}
+		<RightMenu on:recordingToggle={handleRecordingToggle} />
+	{/if}
 </main>
 
 <style>
@@ -54,7 +77,7 @@
 		position: relative;
 		background-color: #f5f5f5;
 	}
-	
+
 	.content {
 		overflow-y: auto;
 		flex: 1;
@@ -80,7 +103,7 @@
 		border-radius: 8px;
 		overflow: hidden;
 		height: 471px;
-		width:95%;
+		width: 95%;
 		padding: 20px;
 	}
 
@@ -89,7 +112,14 @@
 		border-radius: 8px;
 		overflow: hidden;
 		min-height: 30vh;
-		/* width: 95%; */
+	}
+
+	.lighting-section {
+		/* background: #1C1C1E; */
+		border-radius: 8px;
+		overflow: hidden;
+		width: 95%;
+		height: calc(100vh - 150px);
 	}
 
 	/* Custom Scrollbar Styles */
@@ -121,8 +151,8 @@
 	:global(body) {
 		margin: 0;
 		padding: 0;
-		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-			Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+			Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
 		background-color: #000;
 		color: #fff;
 		overflow: hidden;

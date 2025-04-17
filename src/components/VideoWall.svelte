@@ -3,7 +3,7 @@
   import PdfViewer from './PdfViewer.svelte';
   import exportIcon from './icons/export.svg';
   import importIcon from './icons/import.svg';
-  import DashboardViewer from './DashboardViewer.svelte';
+  // import DashboardViewer from './DashboardViewer.svelte';
   const dispatch = createEventDispatcher();
 
   // Initial items that show when the application loads
@@ -98,7 +98,7 @@
     }
   }
 
-  // Update handleCloseAll to properly handle camera streams
+  // Update handleCloseAll to properly handle camera streams and reset presentation
   async function handleCloseAll() {
     // Stop all video streams before removing (except presentation)
     for (const item of videoWallItems) {
@@ -112,8 +112,18 @@
       }
     }
     
-    // Keep only presentation items
-    videoWallItems = videoWallItems.filter(item => item.type === 'presentation');
+    // Reset presentation to default size and position
+    videoWallItems = videoWallItems.map(item => {
+      if (item.type === 'presentation') {
+        return {
+          ...item,
+          position: { x: 0, y: 0 },
+          size: { width: 535, height: 321 }
+        };
+      }
+      return item;
+    }).filter(item => item.type === 'presentation');
+    
     dispatch('closeAll');
   }
 
@@ -1053,10 +1063,6 @@
           </div>
         {:else if item.type === 'dashboard'}
           <div class="dashboard-container">
-            <DashboardViewer 
-              width="{item.size.width}px"
-              height="{item.size.height}px"
-            />
           </div>
         {:else}
           <div class="presentation">
@@ -1542,4 +1548,34 @@
     width: 22px;
     height: 22px;
   } */
+
+  .wall-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+  }
+
+  .close-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .close-all-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .close-all-btn:active {
+    transform: scale(0.98);
+  }
 </style> 
