@@ -118,11 +118,11 @@
                         class:active={activeMenuItem === item.id}
                         on:click={() => handleMenuClick(item.id)}
                     >
-                        <img
-                            src={item.icon}
-                            alt={item.label}
-                            class="menu-icon"
-                        />
+                            <img
+                                src={item.icon}
+                                alt={item.label}
+                                class="menu-icon"
+                            />
                     </button>
                 {/each}
             </nav>

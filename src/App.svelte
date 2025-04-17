@@ -8,6 +8,21 @@
 	import LightingSidebar from "./components/lightingsidebar.svelte";
 	let isRecording = false;
 	let activeView = "display"; // Default view
+	let activeComponent = "videowall"; // Track which component is visible
+	let mainContentRef; // Reference to the main content div
+
+	function handleScroll(event) {
+		if (!mainContentRef) return;
+		
+		const scrollPosition = mainContentRef.scrollTop;
+		const threshold = window.innerHeight * 0.3; // 30% of viewport height as threshold
+		
+		if (scrollPosition > threshold) {
+			activeComponent = "tablemonitor";
+		} else {
+			activeComponent = "videowall";
+		}
+	}
 
 	function handleMenuSelect(event) {
 		activeView = event.detail.id;
@@ -47,13 +62,19 @@
 		{#if activeView === "display"}
 			<Header {isRecording} />
 		{/if}
-		<div class="main-content">
+		<div 
+			class="main-content" 
+			bind:this={mainContentRef}
+			on:scroll={handleScroll}
+		>
 			{#if activeView === "display"}
-				<div class="video-wall-section">
-					<VideoWall on:sourceAdded={handleSourceAdded} />
-				</div>
-				<div class="monitor-section">
-					<TableMonitor />
+				<div class="component-container">
+					<div class="video-wall-section" class:active={activeComponent === "videowall"}>
+						<VideoWall on:sourceAdded={handleSourceAdded} />
+					</div>
+					<div class="monitor-section" class:active={activeComponent === "tablemonitor"}>
+						<TableMonitor />
+					</div>
 				</div>
 			{:else if activeView === "imersive"}
 				<div class="lighting-section">
@@ -96,22 +117,50 @@
 		flex-direction: column;
 		gap: 1rem;
 		width: 100%;
+		height: calc(100vh - 100px); /* Adjust based on header height */
+		overflow-y: scroll;
+		scroll-behavior: smooth;
+		position: relative;
+	}
+
+	.component-container {
+		position: relative;
+		height: 200vh; /* Double the viewport height to allow scrolling */
+		width: 100%;
 	}
 
 	.video-wall-section {
+		position: sticky;
+		top: 0;
 		background: #ffffff;
 		border-radius: 8px;
-		overflow: hidden;
-		height: 471px;
+		height: calc(100vh - 140px);
 		width: 95%;
 		padding: 20px;
+		margin: 0 auto;
+		opacity: 0;
+		transition: opacity 0.3s ease-in-out;
+		pointer-events: none;
 	}
 
 	.monitor-section {
-		background: white;
+		position: sticky;
+		top: 0;
+		background: #ffffff;
 		border-radius: 8px;
-		overflow: hidden;
-		min-height: 30vh;
+		height: calc(100vh - 140px);
+		width: 95%;
+		padding: 20px;
+		margin: 0 auto;
+		opacity: 0;
+		transition: opacity 0.3s ease-in-out;
+		pointer-events: none;
+	}
+
+	.video-wall-section.active,
+	.monitor-section.active {
+		opacity: 1;
+		pointer-events: all;
 	}
 
 	.lighting-section {
