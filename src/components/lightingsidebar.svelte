@@ -1,5 +1,5 @@
 <script>
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onMount } from "svelte";
     import homeIcon from "./icons/home.svg";
     import displayIcon from "./icons/display.svg";
     import cameraIcon from "./icons/camera.svg";
@@ -10,6 +10,7 @@
     import orderIcon from "./icons/order.svg";
     const dispatch = createEventDispatcher();
 
+    let socket;
     let activeMenuItem = "imersive";
     const menuItems = [
         { id: "home", icon: homeIcon, label: "Home" },
@@ -24,9 +25,9 @@
 
     // Control states
     let controls = {
-        lights: { on: true },
-        audioInput: { on: false },
-        audioOutput: { on: true },
+        lights: { id: "lights", name: "Lights", on: true },
+        audioInput: { id: "audioInput", name: "Audio Input", on: false },
+        audioOutput: { id: "audioOutput", name: "Audio Output", on: true },
     };
 
     // Projector states
@@ -39,12 +40,49 @@
         other: { status: "ok", label: "Ok" },
     };
 
+    onMount(() => {
+        // Initialize WebSocket connection
+        socket = new WebSocket('ws://localhost:3000'); // Adjust the URL to your WebSocket server
+
+        socket.onopen = () => {
+            console.log('WebSocket connection established');
+            // Send initial states of all controls
+            Object.values(controls).forEach(control => {
+                sendControlState(control);
+            });
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket connection closed');
+        };
+    });
+
+    function sendControlState(control) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            const data = {
+                id: control.id,
+                name: control.name,
+                status: control.on ? "on" : "off"
+            };
+            socket.send(JSON.stringify(data));
+            console.log('Data sent successfully:', data);
+        } else {
+            console.log('WebSocket not ready. Current state:', socket ? socket.readyState : 'No socket');
+        }
+    }
+
     function toggleControl(control) {
         controls[control].on = !controls[control].on;
         dispatch("controlToggle", {
             control,
             state: controls[control].on,
         });
+        // Send the updated state to the server
+        sendControlState(controls[control]);
     }
 
     function handleMenuClick(itemId) {

@@ -6,6 +6,7 @@
 	import TableMonitor from "./components/TableMonitor.svelte";
 	import Lighting from "./components/Lighting.svelte";
 	import LightingSidebar from "./components/lightingsidebar.svelte";
+	// import { Analytics } from "@vercel/analytics/react"
 	let isRecording = false;
 	let activeView = "display"; // Default view
 	let activeComponent = "videowall"; // Track which component is visible
