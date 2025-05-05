@@ -54,7 +54,7 @@
 
 <div class="header">
   <div class="left">
-    <h2>Displays</h2>
+    <h3>Displays</h3>
   </div>
   <div class="right">
     <div class="recording-status">
@@ -74,10 +74,10 @@
     padding: 1rem;
   }
 
-  .left h2 {
+  .left h3 {
     margin: 0;
-    font-size: 1.5rem;
-    color: #333;
+    font-size: 1.2rem;
+    color: #5e5e5ecc;
   }
 
   .right {

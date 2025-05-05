@@ -16,8 +16,8 @@
   let activeMenuItem = "display";
   let activeSourceItem = "camera";
   let searchQuery = "";
-  let radius = 300; // Increased radius for more spacing
-  let verticalOffset = -60; // Increased vertical offset for more spacing
+  let radius = 350; // Increased radius for more spacing
+  let verticalOffset = -10; // Increased vertical offset for more spacing
   let items = [];
   let currentRotation = 0;
   let isDragging = false;
@@ -638,9 +638,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    perspective: 1500px;
+    perspective: 190vw;
     overflow: visible;
-    gap: 20px;
+    gap:0px;
     margin: 20px 0;
     margin-top: 50px;
   }
@@ -654,8 +654,8 @@
     cursor: grab;
     will-change: transform, opacity;
     backface-visibility: hidden;
-    margin-bottom: 20px;
-    margin-top: 50px;
+    margin-bottom: 10px;
+    margin-top: 30px;
   }
   
   .source-content {

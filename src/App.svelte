@@ -97,17 +97,17 @@
 		width: 100%;
 		max-height: 100vh;
 		position: relative;
-		background-color: #f5f5f5;
+		background-color: rgb(243, 243, 243);
 	}
 
 	.content {
 		overflow-y: auto;
 		flex: 1;
-		padding: 1rem;
-		background-color: #f5f5f5;
+		padding: 0rem 1rem;
+		background-color: rgb(243, 243, 243);
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0rem;
 		overflow-x: hidden;
 		align-items: center;
 		width: 100%;
@@ -116,46 +116,45 @@
 	.main-content {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 20px;
 		width: 100%;
-		height: calc(100vh - 100px); /* Adjust based on header height */
-		overflow-y: scroll;
+		height: auto;
+		min-height: calc(100vh - 100px);
+		overflow-y: auto;
 		scroll-behavior: smooth;
-		position: relative;
+		padding: 20px 20px;
+		justify-content: center;
 	}
 
 	.component-container {
 		position: relative;
-		height: 200vh; /* Double the viewport height to allow scrolling */
+		height: auto;
 		width: 100%;
+		min-height: 100%;
 	}
 
 	.video-wall-section {
-		position: sticky;
-		top: 0;
-		background: #ffffff;
-		border-radius: 8px;
-		height: calc(100vh - 140px);
-		width: 95%;
-		padding: 20px;
+		position: relative;
+		background: rgba(255, 255, 255, 1);
+		border-radius: 24px;
+		height: 430px;
+		width: 97%;
+		padding: 30px 20px;
 		margin: 0 auto;
-		opacity: 0;
-		transition: opacity 0.3s ease-in-out;
-		pointer-events: none;
+		opacity: 1;
+		pointer-events: all;
 	}
 
 	.monitor-section {
-		position: sticky;
-		top: 0;
+		position: relative;
 		background: #ffffff;
-		border-radius: 8px;
-		height: calc(100vh - 140px);
-		width: 95%;
-		padding: 20px;
-		margin: 0 auto;
-		opacity: 0;
-		transition: opacity 0.3s ease-in-out;
-		pointer-events: none;
+		border-radius: 24px;
+		height: 430px;
+		width: 97%;
+		padding: 30px 20px;
+		margin: 20px auto 0;
+		opacity: 1;
+		pointer-events: all;
 	}
 
 	.video-wall-section.active,

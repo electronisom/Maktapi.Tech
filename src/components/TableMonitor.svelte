@@ -17,7 +17,7 @@
       content: null,
       position: { x: 0, y: 0 },
       size: { width: 535, height: 321 }
-    },
+    }
   ];
 
   let draggedItem = null;
@@ -112,17 +112,17 @@
       }
     }
     
-    // Reset presentation to default size and position
-    videoWallItems = videoWallItems.map(item => {
-      if (item.type === 'presentation') {
-        return {
-          ...item,
-          position: { x: 0, y: 0 },
-          size: { width: 535, height: 321 }
-        };
-      }
-      return item;
-    }).filter(item => item.type === 'presentation');
+    // Reset to default state with just the presentation
+    videoWallItems = [{
+      id: 'presentation',
+      type: 'presentation',
+      stream: null,
+      videoElement: null,
+      thumbnail: 'https://media-hosting.imagekit.io/6c79edddc2d849ed/th.png?Expires=1838797462&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=Bolgpn02672FofMrvvhKYcvang0L0l15s8tm3X-g8E4U~jr7RhHqS4~Ub3p2USHVtjbu9o9tVSHpVl~TxdmybfcFFfbSwIeAI7pd5HS8NY2Oj1PHXsYvag6UEM2IOUgyGTa31FUMLejqcCh94ee69vl5j2VdRn3CgExGr~29cKI8MwFVXF0KBPLnucTTGfwwb5wDUtprXwLKrCupFDEtdGiCijMOCDgP2TO1crREsYhts6hXUnK2Hz6dbhlXiw~sECTliEKl0~5jwxM6D3UVbw-TwH4WPMCcZ5skrgFJoiY46w1jED3bMefhP9eB58YViLFIcw8aqalMZcS4p0Lowg__',
+      content: null,
+      position: { x: 0, y: 0 },
+      size: { width: 535, height: 321 }
+    }];
     
     dispatch('closeAll');
   }
@@ -943,7 +943,7 @@
           {/if}
         </button>
         <div class="controls">
-          <button 
+          <!-- <button 
             class="control-button" 
             on:click={exportSourcesToJson}
             disabled={isExporting}
@@ -967,7 +967,7 @@
               <path d="M12 4L12 14M12 14L15 11M12 14L9 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M12 20C7.58172 20 4 16.4183 4 12M20 12C20 14.5264 18.8289 16.7792 17 18.2454" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
-          </label>
+          </label> -->
           {#if exportStatus}
             <span class="export-status">{exportStatus}</span>
           {/if}

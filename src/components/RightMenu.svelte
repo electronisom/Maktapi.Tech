@@ -89,6 +89,7 @@
     try {
       if (micStream) {
         stopStream(micStream);
+        micStream = null;
       }
       micStream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -110,6 +111,7 @@
     try {
       if (videoStream) {
         stopStream(videoStream);
+        videoStream = null;
       }
       videoStream = await navigator.mediaDevices.getUserMedia({ 
         video: {
@@ -252,11 +254,14 @@
               dispatch('error', { message: 'Failed to start microphone' });
               return;
             }
+            isMicOn = true;
           } else {
-            stopStream(micStream);
-            micStream = null;
+            if (micStream) {
+              stopStream(micStream);
+              micStream = null;
+            }
+            isMicOn = false;
           }
-          isMicOn = !isMicOn;
           dispatch('micToggle', { 
             active: isMicOn,
             action: isMicOn ? 'unmute' : 'mute',
@@ -299,21 +304,23 @@
               return;
             }
             isVideoOn = true;
-            dispatch('videoToggle', { 
-              active: true,
-              action: 'startVideo',
-              stream: videoStream
-            });
           } else {
-            stopStream(videoStream);
-            videoStream = null;
+            if (videoStream) {
+              stopStream(videoStream);
+              videoStream = null;
+              // Clear the video element
+              const videoElement = document.getElementById('camera-feed');
+              if (videoElement) {
+                videoElement.srcObject = null;
+              }
+            }
             isVideoOn = false;
-            dispatch('videoToggle', { 
-              active: false,
-              action: 'stopVideo',
-              stream: null
-            });
           }
+          dispatch('videoToggle', { 
+            active: isVideoOn,
+            action: isVideoOn ? 'startVideo' : 'stopVideo',
+            stream: isVideoOn ? videoStream : null
+          });
         } catch (e) {
           console.error('Camera toggle failed:', e);
           dispatch('error', { message: 'Failed to toggle camera' });
